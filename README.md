@@ -74,10 +74,20 @@ GoertzelTracker.h Inter-Frame-Hold-Detektion
 BellBank.h latenzfreie Notch-Bank
 FeedbackEngine.h Verkabelung, Slot-Verwaltung, Headroom-Begrenzung
 
-### Rechtliches
-Proprietäres Projekt, derzeit privat. JUCE ist dual lizenziert
-(GPLv3 / kommerziell). Vor Veröffentlichung oder kommerzieller Nutzung die
-Lizenzbedingungen prüfen: <https://juce.com/license>
+### Lizenz
+Dieses Projekt steht unter der **GNU Affero General Public License version 3
+(AGPL-3.0-only)**.
+
+Der vollständige Lizenztext liegt in der Datei `LICENSE`.
+
+Du darfst die Software nutzen, verändern und weitergeben, solange abgeleitete
+Werke ebenfalls unter den Bedingungen der AGPLv3 veröffentlicht werden.
+
+Dieses Projekt verwendet das JUCE-Framework (<https://juce.com>) unter der
+GNU Affero General Public License version 3.
+
+Freiwillige Spenden, z. B. über den Kaffee-Button im Plugin, schalten keine
+zusätzlichen Funktionen frei und ändern nichts an den AGPL-Rechten.
 
 ### Kontakt
 Mail: info@roarsound.de · Kaffee: <https://paypal.me/RoarSound>
@@ -150,10 +160,20 @@ GoertzelTracker.h inter-frame hold detection
 BellBank.h zero-latency notch bank
 FeedbackEngine.h wiring, slot management, headroom limiting
 
-### Legal
-Proprietary project, private for now. JUCE is dual-licensed
-(GPLv3 / commercial). Check the licensing terms before publishing or
-commercial use: <https://juce.com/license>
+### License
+This project is licensed under the **GNU Affero General Public License version 3
+(AGPL-3.0-only)**.
+
+The full license text is included in the file `LICENSE`.
+
+You may use, modify and redistribute this software under the terms of the AGPLv3.
+Derived works must also be released under the AGPLv3.
+
+This project uses the JUCE framework (<https://juce.com>) under the GNU Affero
+General Public License version 3.
+
+Voluntary donations, e.g. via the coffee button inside the plugin, do not unlock
+additional functionality and do not change the AGPL rights.
 
 ### Contact
 Mail: info@roarsound.de · Coffee: <https://paypal.me/RoarSound>
@@ -165,3 +185,4 @@ Mail: info@roarsound.de · Coffee: <https://paypal.me/RoarSound>
 |---|---|
 | 1.4.9 | Safari-Retro-GUI, Half-Rack-Standalone, 6+18 Notches, Q 20 dynamisch, Hann-Goertzel, Sensitivity 70 % |
 | 1.5.0 | Messung auch im Live-Modus (nur feste Notches aktiv), Modus "Statisch" (vorher "Einpfeifen"), Modusnamen DE/EN |
+| 1.5.0 | AGPL-3.0-only release, Messung auch im Live-Modus, Modus "Statisch"/"Static", Schmalband-Gate, Q18 feste Notches |

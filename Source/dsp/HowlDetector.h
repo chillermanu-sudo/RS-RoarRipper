@@ -1,3 +1,24 @@
+/*
+  RS Roar Ripper - Feedback Suppressor
+  Copyright (c) 2026 Roar Sound
+
+  SPDX-License-Identifier: AGPL-3.0-only
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, version 3 of the License.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+  This software uses the JUCE framework (https://juce.com), which is also
+  licensed under the GNU Affero General Public License version 3.
+*/
 #pragma once
 
 #include "Constants.h"
@@ -389,8 +410,8 @@ namespace rsdsp
 
             const double s = sensitivity;
             const float relax = measurementMode ? measureRelaxDb : 0.0f;
-            const float pnprMin = (float)(28.0 - 10.0 * s) - relax; // Nachbarabstand muss 4 dB größer sein
-            const float paprMin = (float)(32.0 - 8.0 * s) - relax;  // Pegelüberhöhung muss 4 dB größer sein
+            const float pnprMin = (float)(28.0 - 10.0 * s) - relax; // Nachbarabstand muss 4 dB grÃ¶ÃŸer sein
+            const float paprMin = (float)(32.0 - 8.0 * s) - relax;  // PegelÃ¼berhÃ¶hung muss 4 dB grÃ¶ÃŸer sein
             const float floorDb = -72.0f;
 
             numPeaks = 0;
@@ -546,7 +567,7 @@ namespace rsdsp
                 }
                 // Spektraler Fluss beschleunigt die Bestaetigung bei plaetzlichem Anstieg.
         // Transienten (Schlagzeug, Plosive) sind breitbandig und sterben bereits
-        // im Gate – hier kommt nur echtes, anschwellendes Feedback durch.
+        // im Gate â€“ hier kommt nur echtes, anschwellendes Feedback durch.
                 if (maxFlux > 6.0f && fluxBin > 0
                     && std::abs((double)fluxBin - cd.bin) < 2.0)
                 {

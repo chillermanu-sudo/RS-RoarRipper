@@ -1,0 +1,7 @@
+﻿Corresponding source code for RS Roar Ripper 1.5.0:
+
+https://github.com/chillermanu-sudo/RS-RoarRipper/tree/v1.5.0
+
+If this tag is not available yet, the source code will be published here:
+
+https://github.com/chillermanu-sudo/RS-RoarRipper

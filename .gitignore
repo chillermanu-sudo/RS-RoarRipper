@@ -24,3 +24,5 @@ desktop.ini
 .DS_Store
 *.bak
 .git_alt/
+
+InstallerOutput/
