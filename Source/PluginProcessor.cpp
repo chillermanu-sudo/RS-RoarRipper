@@ -74,7 +74,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout RoarRipperAudioProcessor::cr
     // Mode
     l.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{ ids::mode, 1 }, "Mode",
-        juce::StringArray{ "Live", "Einpfeifen", "Standalone" }, 1));
+        juce::StringArray{ "Live", "Statisch", "Standalone" }, 1));
 
     l.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{ ids::ab, 1 }, "Bypass", false));
@@ -367,10 +367,9 @@ void RoarRipperAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     applyPendingRestore();
     updateSettings();
 
-    // Messung gibt es nur im Einpfeifen-Modus
-    if (getMode() != 1)
+    // Messung in Live und Statisch, nicht im Standalone
+    if (getMode() == 2)
         measuring.store(false);
-
     engine.setMeasuring(measuring.load());
 
     const bool muted = pMute->load() > 0.5f;

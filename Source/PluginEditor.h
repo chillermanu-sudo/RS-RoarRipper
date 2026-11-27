@@ -197,8 +197,8 @@ private:
 
     juce::String caption, tooltip;
     juce::Image face;
-    float currentVu = -20.0f;
-    float targetVu = -20.0f;
+    float currentVu = -24.0f;
+    float targetVu = -24.0f;
     float peakHold = 0.0f;
     static constexpr float referenceDbFS = -18.0f;
 };
@@ -296,6 +296,7 @@ private:
     InfoPopup infoPopup;
 
     InfoLabel versionLabel, cpuLabel;
+    juce::Label speedLabel;
 
     ModeSelector  modeSelector;
     SpeedSelector speedSelector;

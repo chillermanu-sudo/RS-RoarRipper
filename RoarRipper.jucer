@@ -5,7 +5,7 @@
               companyWebsite="www.roarsound.de" companyEmail="info@roarsound.de"
               pluginFormats="buildAU,buildAUv3,buildStandalone,buildVST3" pluginName="RS Roar Ripper"
               pluginManufacturerCode="Rsnd" pluginCode="Rsrr" pluginVST3Category="Filter | Tools"
-              pluginDesc="identifying and killing feedback automatically" version="1.4.9">
+              pluginDesc="identifying and killing feedback automatically" version="1.5.0">
   <MAINGROUP id="XluEpg" name="RS-RoarRipper">
     <GROUP id="{771A1F81-60BA-4C39-ED64-B06B4E22995E}" name="Source">
       <FILE id="fg6MNn" name="cheetah.png" compile="0" resource="1" file="Source/cheetah.png"/>

@@ -1,5 +1,8 @@
 #include "PluginEditor.h"
 
+#include <algorithm>
+#include <vector>
+
 #define RS_USE_LOGO 1
 #if RS_USE_LOGO
 #include "BinaryData.h"
@@ -19,7 +22,7 @@ namespace
 {
     constexpr double fMin = 20.0, fMax = 20000.0;
 
-    // RTA-Anzeigebereich: -75 dB .. +5 dB
+    // RTA-Anzeigebereich
     constexpr double dbTop = 5.0, dbBottom = -75.0;
 
     // Design-Raster
@@ -28,8 +31,7 @@ namespace
     constexpr float DH = 332.0f;
 
     // Designbreite aus dem TATSAECHLICHEN Seitenverhaeltnis ableiten.
-    // Lehnt ein Host die Vergroesserung/Verkleinerung ab, bleibt das Layout
-    // dadurch konsistent und nichts laeuft aus dem Fenster.
+    // Lehnt ein Host die Groessenaenderung ab, bleibt das Layout konsistent.
     float designWidthFor(int w, int h) noexcept
     {
         const float aspect = (float)w / (float)juce::jmax(1, h);
@@ -49,6 +51,8 @@ namespace
     }
 
     // ---- Hintergrund per Flood-Fill entfernen und freistellen ------------
+    // Nur zusammenhaengende Randflaechen werden entfernt; innere helle
+    // Details (z. B. die Silber-Einsaetze am Knopf) bleiben erhalten.
     juce::Image keyOutBackground(juce::Image raw, int maxW, int tol)
     {
         if (raw.isNull()) return {};
@@ -267,17 +271,19 @@ namespace
     }
 #endif
 
-    // ---- Gezeichnete Speed-Piktogramme (Fallback) ------------------------
+    // ---- Gezeichnete Speed-Piktogramme (Fallback, 24 x 16 Normraum) ------
     void drawSpeedIcon(juce::Graphics& g, juce::Rectangle<float> box, int idx,
         juce::Colour col, float s)
     {
+        juce::ignoreUnused(s);
+
         const float sc = juce::jmin(box.getWidth() / 24.0f, box.getHeight() / 16.0f);
         auto t = juce::AffineTransform::scale(sc)
             .translated(box.getX() + (box.getWidth() - 24.0f * sc) * 0.5f,
                 box.getY() + (box.getHeight() - 16.0f * sc) * 0.5f);
         g.setColour(col);
 
-        if (idx == 0)
+        if (idx == 0) // Schildkroete
         {
             juce::Path shell;
             shell.addEllipse(4.0f, 4.0f, 14.0f, 9.0f);
@@ -292,7 +298,7 @@ namespace
             legs.addRectangle(16.0f, 12.0f, 2.2f, 3.2f);
             g.fillPath(legs, t);
         }
-        else if (idx == 1)
+        else if (idx == 1) // Elefant
         {
             juce::Path body;
             body.addEllipse(3.0f, 5.0f, 14.0f, 9.0f);
@@ -313,7 +319,7 @@ namespace
             legs.addRectangle(12.5f, 13.0f, 2.6f, 3.0f);
             g.fillPath(legs, t);
         }
-        else if (idx == 2)
+        else if (idx == 2) // Loewe
         {
             juce::Path mane;
             const float cx = 8.5f, cy = 8.0f, r1 = 6.4f, r2 = 4.9f;
@@ -342,7 +348,7 @@ namespace
             legs.addRectangle(18.5f, 12.5f, 1.8f, 3.0f);
             g.fillPath(legs, t);
         }
-        else
+        else // Gepard
         {
             juce::Path body;
             body.addEllipse(4.0f, 6.5f, 14.0f, 4.6f);
@@ -369,7 +375,7 @@ namespace
 #ifdef JucePlugin_VersionString
         return juce::String(JucePlugin_VersionString);
 #else
-        return "1.4.7";
+        return "1.4.9";
 #endif
     }
 
@@ -419,7 +425,6 @@ namespace
         return out;
     }
 }
-
 // ===========================================================================
 // rsui-Helfer
 // ===========================================================================
@@ -443,6 +448,7 @@ void rsui::drawScrew(juce::Graphics& g, juce::Point<float> c, float r, juce::Ran
         g.setColour(juce::Colour(0xff8a5a2b).withAlpha(0.10f + rnd.nextFloat() * 0.18f));
         g.fillEllipse(c.x + std::cos(a) * d - rr, c.y + std::sin(a) * d - rr, rr * 2.0f, rr * 2.0f);
     }
+
     juce::ColourGradient gr(rsui::panelHi.brighter(0.15f), c.x - r, c.y - r,
         rsui::panelLo.darker(0.35f), c.x + r, c.y + r, false);
     g.setGradientFill(gr);
@@ -473,6 +479,7 @@ void rsui::drawWear(juce::Graphics& g, juce::Rectangle<float> r, juce::Random& r
             .withAlpha((0.03f + rnd.nextFloat() * 0.10f) * strength));
         g.drawLine(x, y, x + len, y + dy, 0.5f + rnd.nextFloat() * 0.8f);
     }
+
     for (int i = 0; i < scratches / 18 + 5; ++i)
     {
         const float x = r.getX() + rnd.nextFloat() * r.getWidth();
@@ -483,6 +490,7 @@ void rsui::drawWear(juce::Graphics& g, juce::Rectangle<float> r, juce::Random& r
         g.setGradientFill(gr);
         g.fillEllipse(x - rad, y - rad, rad * 2.0f, rad * 2.0f);
     }
+
     for (int i = 0; i < scratches / 24 + 3; ++i)
     {
         const float x = r.getX() + rnd.nextFloat() * r.getWidth();
@@ -496,6 +504,9 @@ void rsui::drawWear(juce::Graphics& g, juce::Rectangle<float> r, juce::Random& r
     }
 }
 
+// ---------------------------------------------------------------------------
+// Der schwarze Hochglanz-Drehknopf mit Fluegelzeiger
+// ---------------------------------------------------------------------------
 void rsui::drawRoarKnob(juce::Graphics& g, juce::Point<float> c, float R,
     float angle, float s, bool lit, juce::Random& rnd)
 {
@@ -511,26 +522,33 @@ void rsui::drawRoarKnob(juce::Graphics& g, juce::Point<float> c, float R,
         const float sc = (2.0f * R) / (float)photo.getWidth();
         const float w = (float)photo.getWidth() * sc;
         const float h = (float)photo.getHeight() * sc;
+
         auto t = juce::AffineTransform::scale(sc)
             .translated(-w * 0.5f, -h * 0.5f)
             .rotated(angle)
             .translated(c);
+
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
         g.setOpacity(lit ? 1.0f : 0.68f);
         g.drawImageTransformed(photo, t, false);
         g.setOpacity(1.0f);
-        rsui::drawWear(g, juce::Rectangle<float>(c.x - R, c.y - R, R * 2.0f, R * 2.0f), rnd, 8, 0.45f);
+
+        rsui::drawWear(g, juce::Rectangle<float>(c.x - R, c.y - R, R * 2.0f, R * 2.0f),
+            rnd, 8, 0.45f);
         return;
     }
 #endif
 
+    // ---------------- Fallback: gezeichneter Knopf ----------------
     const float dim = lit ? 1.0f : 0.70f;
+
     juce::ColourGradient dome(juce::Colour(0xff626262).withMultipliedBrightness(dim),
         c.x - R * 0.38f, c.y - R * 0.42f,
         juce::Colour(0xff040404), c.x + R * 0.85f, c.y + R * 0.90f, true);
     dome.addColour(0.45, juce::Colour(0xff1c1c1c));
     g.setGradientFill(dome);
     g.fillEllipse(c.x - R, c.y - R, R * 2.0f, R * 2.0f);
+
     {
         juce::Graphics::ScopedSaveState save(g);
         juce::Path clip;
@@ -543,6 +561,7 @@ void rsui::drawRoarKnob(juce::Graphics& g, juce::Point<float> c, float R,
         g.setGradientFill(gloss);
         g.fillEllipse(c.x - R * 0.95f, c.y - R * 0.98f, R * 1.25f, R * 1.0f);
     }
+
     g.setColour(juce::Colour(0xff8a8a8a).withAlpha(0.35f * dim));
     g.drawEllipse(c.x - R, c.y - R, R * 2.0f, R * 2.0f, 0.9f * s);
 
@@ -574,6 +593,7 @@ void rsui::drawRoarKnob(juce::Graphics& g, juce::Point<float> c, float R,
             juce::Colour(0xff585858), ix + ir, ir, false);
         g.setGradientFill(ig);
         g.fillPath(ins, tf);
+
         g.setColour(juce::Colour(0xff3a3a3a).withAlpha(0.75f));
         for (int i = 0; i < 10; ++i)
         {
@@ -604,6 +624,7 @@ void rsui::drawRoarKnob(juce::Graphics& g, juce::Point<float> c, float R,
     wg.addColour(0.62, juce::Colour(0xff0a0a0a));
     g.setGradientFill(wg);
     g.fillPath(wing, tf);
+
     g.setColour(juce::Colour(0xffb4b4b4).withAlpha(0.35f * dim));
     g.strokePath(wing, juce::PathStrokeType(0.7f * s), tf);
 
@@ -636,6 +657,7 @@ rsui::LookAndFeel::LookAndFeel()
     setColour(juce::Slider::textBoxHighlightColourId, rsui::jewelAmb.withAlpha(0.35f));
 }
 
+// Reset / Export / Import: gleiche Elfenbein-Optik wie die Kippschalter
 void rsui::LookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& b,
     const juce::Colour&, bool over, bool down)
 {
@@ -649,7 +671,10 @@ void rsui::LookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& b,
     auto top = over ? rsui::plasticHi.brighter(0.05f) : rsui::plasticHi;
     auto bot = rsui::plasticLo;
     if (down) { top = top.darker(0.10f); bot = bot.darker(0.12f); }
-    if (lit) { top = rsui::mix(top, rsui::jewelAmb, 0.35f); bot = rsui::mix(bot, rsui::jewelAmb, 0.30f); }
+    if (lit) {
+        top = rsui::mix(top, rsui::jewelAmb, 0.35f);
+        bot = rsui::mix(bot, rsui::jewelAmb, 0.30f);
+    }
 
     juce::ColourGradient gr(top, r.getX(), r.getY(), bot, r.getX(), r.getBottom(), false);
     g.setGradientFill(gr);
@@ -677,6 +702,7 @@ void IconMetalButton::paintButton(juce::Graphics& g, bool over, bool down)
 
     g.setColour(rsui::ink.withAlpha(0.32f));
     g.fillEllipse(c.x - rad + 1.2f, c.y - rad + 1.8f, d, d);
+
     auto base = down ? rsui::panelLo : (over ? rsui::panelMid.brighter(0.10f) : rsui::panelMid);
     juce::ColourGradient gr(base.brighter(0.25f), c.x - rad, c.y - rad,
         base.darker(0.30f), c.x + rad, c.y + rad, false);
@@ -690,6 +716,7 @@ void IconMetalButton::paintButton(juce::Graphics& g, bool over, bool down)
         g.setColour(litColour().withAlpha(0.30f));
         g.fillEllipse(c.x - rad + 2.0f, c.y - rad + 2.0f, d - 4.0f, d - 4.0f);
     }
+
     juce::Random rnd((int)(size_t)this);
     rsui::drawWear(g, juce::Rectangle<float>(c.x - rad, c.y - rad, d, d), rnd, 10, 0.9f);
     drawIcon(g, juce::Rectangle<float>(c.x - rad, c.y - rad, d, d).reduced(d * 0.16f));
@@ -708,16 +735,20 @@ void CoffeeButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
     auto t = juce::AffineTransform::scale(sc)
         .translated(a.getX() + (a.getWidth() - 24.0f * sc) * 0.5f,
             a.getY() + (a.getHeight() - 24.0f * sc) * 0.5f);
+
     juce::Path cup;
     cup.startNewSubPath(5.0f, 8.0f); cup.lineTo(18.0f, 8.0f);
-    cup.lineTo(16.5f, 20.0f);        cup.lineTo(6.5f, 20.0f); cup.closeSubPath();
+    cup.lineTo(16.5f, 20.0f);        cup.lineTo(6.5f, 20.0f);
+    cup.closeSubPath();
     g.setColour(rsui::ink);
     g.fillPath(cup, t);
+
     juce::Path handle;
     handle.startNewSubPath(18.0f, 10.0f);
     handle.quadraticTo(22.5f, 10.5f, 22.0f, 14.0f);
     handle.quadraticTo(21.5f, 17.5f, 17.5f, 17.5f);
     g.strokePath(handle, juce::PathStrokeType(1.8f), t);
+
     juce::Path steam;
     steam.startNewSubPath(9.0f, 6.0f);  steam.quadraticTo(10.0f, 4.0f, 9.0f, 2.0f);
     steam.startNewSubPath(13.0f, 6.0f); steam.quadraticTo(14.0f, 4.0f, 13.0f, 2.0f);
@@ -731,15 +762,18 @@ void BugButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
     auto t = juce::AffineTransform::scale(sc)
         .translated(a.getX() + (a.getWidth() - 24.0f * sc) * 0.5f,
             a.getY() + (a.getHeight() - 24.0f * sc) * 0.5f);
+
     juce::Path body;
     body.addEllipse(6.5f, 8.0f, 11.0f, 13.0f);
     body.addEllipse(9.0f, 3.5f, 6.0f, 5.5f);
     g.setColour(rsui::ink);
     g.fillPath(body, t);
+
     juce::Path mid;
     mid.startNewSubPath(12.0f, 8.5f); mid.lineTo(12.0f, 20.5f);
     g.setColour(rsui::panelMid);
     g.strokePath(mid, juce::PathStrokeType(1.0f), t);
+
     juce::Path legs;
     legs.startNewSubPath(6.5f, 11.0f);  legs.lineTo(2.0f, 9.0f);
     legs.startNewSubPath(6.0f, 14.5f);  legs.lineTo(1.5f, 14.5f);
@@ -768,7 +802,9 @@ void FlagButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
     else
     {
         const juce::Colour navy{ 0xff1b2a55 }, red{ 0xffa52a34 }, white{ 0xffe8e4d8 };
-        g.setColour(navy); g.fillRect(a);
+        g.setColour(navy);
+        g.fillRect(a);
+
         juce::Path d1, d2;
         d1.startNewSubPath(a.getX(), a.getY());     d1.lineTo(a.getRight(), a.getBottom());
         d2.startNewSubPath(a.getRight(), a.getY()); d2.lineTo(a.getX(), a.getBottom());
@@ -778,6 +814,7 @@ void FlagButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
         g.setColour(red);
         g.strokePath(d1, juce::PathStrokeType(a.getHeight() * 0.10f));
         g.strokePath(d2, juce::PathStrokeType(a.getHeight() * 0.10f));
+
         g.setColour(white);
         g.fillRect(a.getX(), a.getCentreY() - a.getHeight() * 0.16f, a.getWidth(), a.getHeight() * 0.32f);
         g.fillRect(a.getCentreX() - a.getWidth() * 0.16f, a.getY(), a.getWidth() * 0.32f, a.getHeight());
@@ -785,12 +822,13 @@ void FlagButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
         g.fillRect(a.getX(), a.getCentreY() - a.getHeight() * 0.09f, a.getWidth(), a.getHeight() * 0.18f);
         g.fillRect(a.getCentreX() - a.getWidth() * 0.09f, a.getY(), a.getWidth() * 0.18f, a.getHeight());
     }
+
     g.setColour(rsui::panelEdge.withAlpha(0.7f));
     g.drawRect(a, 0.8f);
 }
 
 // ===========================================================================
-// Wippschalter
+// Wippschalter (Messung / Bypass / Mute)
 // ===========================================================================
 ToggleSwitch::ToggleSwitch(const juce::String& caption_)
     : juce::Button(caption_), caption(caption_)
@@ -808,7 +846,7 @@ void ToggleSwitch::timerCallback()
 {
     const float diff = target - pos;
     if (std::abs(diff) < 0.004f) { pos = target; stopTimer(); }
-    else                            pos += diff * 0.35f;
+    else                          pos += diff * 0.35f;
     repaint();
 }
 
@@ -835,9 +873,11 @@ void ToggleSwitch::paintButton(juce::Graphics& g, bool over, bool)
         g.setGradientFill(glow);
         g.fillEllipse(lc.x - lr * 3.2f, lc.y - lr * 3.2f, lr * 6.4f, lr * 6.4f);
     }
-    juce::ColourGradient jewel(on ? rsui::jewelAmb.brighter(0.4f) : rsui::mix(rsui::panelLo, rsui::ink, 0.4f),
+    juce::ColourGradient jewel(on ? rsui::jewelAmb.brighter(0.4f)
+        : rsui::mix(rsui::panelLo, rsui::ink, 0.4f),
         lc.x - lr, lc.y - lr,
-        on ? rsui::jewelAmb.darker(0.4f) : rsui::ink, lc.x + lr, lc.y + lr, false);
+        on ? rsui::jewelAmb.darker(0.4f) : rsui::ink,
+        lc.x + lr, lc.y + lr, false);
     g.setGradientFill(jewel);
     g.fillEllipse(lc.x - lr, lc.y - lr, lr * 2.0f, lr * 2.0f);
 
@@ -846,6 +886,7 @@ void ToggleSwitch::paintButton(juce::Graphics& g, bool over, bool)
     auto body = r.reduced(5.0f * s, 2.0f * s);
     g.setColour(rsui::ink.withAlpha(0.38f));
     g.fillRoundedRectangle(body.translated(1.2f * s, 1.8f * s), 3.0f * s);
+
     juce::ColourGradient frame(over ? rsui::plasticHi.brighter(0.05f) : rsui::plasticHi,
         body.getX(), body.getY(),
         rsui::plasticLo, body.getX(), body.getBottom(), false);
@@ -903,9 +944,8 @@ void ToggleSwitch::paintButton(juce::Graphics& g, bool over, bool)
     juce::Random rnd((int)(size_t)this);
     rsui::drawWear(g, body, rnd, 14, 0.7f);
 }
-
 // ===========================================================================
-// RetroKnob
+// RetroKnob  (optional mit eingebauter Ein/Aus-Funktion fuer HPF/LPF)
 // ===========================================================================
 RetroKnob::RetroKnob()
     : juce::Slider(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow)
@@ -937,13 +977,16 @@ void RetroKnob::mouseDown(const juce::MouseEvent& e)
 
 void RetroKnob::mouseDrag(const juce::MouseEvent& e)
 {
-    if (e.getDistanceFromDragStart() > 3.0f) moved = true;
+    if (e.getDistanceFromDragStart() > 3.0f)
+        moved = true;
     juce::Slider::mouseDrag(e);
 }
 
 void RetroKnob::mouseUp(const juce::MouseEvent& e)
 {
     juce::Slider::mouseUp(e);
+
+    // Kurzer Klick ohne Ziehen = ein/aus
     if (!moved && powerParam != nullptr && !e.mods.isPopupMenu())
     {
         *powerParam = !powerParam->get();
@@ -982,25 +1025,31 @@ void RetroKnob::paint(juce::Graphics& g)
     const auto rp = getRotaryParameters();
     const float ang = rp.startAngleRadians + prop * (rp.endAngleRadians - rp.startAngleRadians);
 
+    // Skala auf dem Panel
     for (int i = 0; i <= 10; ++i)
     {
-        const float a = rp.startAngleRadians + (rp.endAngleRadians - rp.startAngleRadians) * (float)i / 10.0f;
+        const float a = rp.startAngleRadians
+            + (rp.endAngleRadians - rp.startAngleRadians) * (float)i / 10.0f;
         const float sn = std::sin(a), cs = -std::cos(a);
         const float r1 = R * 1.50f, r2 = R * (i % 5 == 0 ? 1.62f : 1.56f);
         g.setColour(rsui::cream.withAlpha(0.22f));
-        g.drawLine(c.x + sn * r1, c.y + cs * r1 + 0.8f * s, c.x + sn * r2, c.y + cs * r2 + 0.8f * s, 1.0f * s);
+        g.drawLine(c.x + sn * r1, c.y + cs * r1 + 0.8f * s,
+            c.x + sn * r2, c.y + cs * r2 + 0.8f * s, 1.0f * s);
         g.setColour(rsui::ink.withAlpha(0.75f));
-        g.drawLine(c.x + sn * r1, c.y + cs * r1, c.x + sn * r2, c.y + cs * r2, 1.0f * s);
+        g.drawLine(c.x + sn * r1, c.y + cs * r1,
+            c.x + sn * r2, c.y + cs * r2, 1.0f * s);
     }
 
     juce::Random rnd((int)(size_t)this);
     rsui::drawRoarKnob(g, c, R, ang, s, isPowerOn(), rnd);
 
+    // Eingebautes Laempchen (nur HPF/LPF)
     if (hasPower())
     {
         const bool on = isPowerOn();
         juce::Point<float> lc(area.getX() + 9.0f * s, area.getY() + 9.0f * s);
         const float lr = 3.4f * s;
+
         g.setColour(rsui::panelEdge);
         g.fillEllipse(lc.x - lr - 1.3f * s, lc.y - lr - 1.3f * s,
             (lr + 1.3f * s) * 2.0f, (lr + 1.3f * s) * 2.0f);
@@ -1011,9 +1060,11 @@ void RetroKnob::paint(juce::Graphics& g)
             g.setGradientFill(glow);
             g.fillEllipse(lc.x - lr * 3.2f, lc.y - lr * 3.2f, lr * 6.4f, lr * 6.4f);
         }
-        juce::ColourGradient jw(on ? rsui::jewelGrn.brighter(0.45f) : rsui::mix(rsui::panelLo, rsui::ink, 0.45f),
+        juce::ColourGradient jw(on ? rsui::jewelGrn.brighter(0.45f)
+            : rsui::mix(rsui::panelLo, rsui::ink, 0.45f),
             lc.x - lr, lc.y - lr,
-            on ? rsui::jewelGrn.darker(0.45f) : rsui::ink, lc.x + lr, lc.y + lr, false);
+            on ? rsui::jewelGrn.darker(0.45f) : rsui::ink,
+            lc.x + lr, lc.y + lr, false);
         g.setGradientFill(jw);
         g.fillEllipse(lc.x - lr, lc.y - lr, lr * 2.0f, lr * 2.0f);
         g.setColour(rsui::cream.withAlpha(on ? 0.55f : 0.18f));
@@ -1022,7 +1073,7 @@ void RetroKnob::paint(juce::Graphics& g)
 }
 
 // ===========================================================================
-// ModeSelector
+// ModeSelector  (groessere Beschriftung, Box wird im Rahmen gehalten)
 // ===========================================================================
 ModeSelector::ModeSelector()
     : juce::Slider(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox)
@@ -1031,15 +1082,21 @@ ModeSelector::ModeSelector()
     setRotaryParameters(juce::degreesToRadians(-55.0f), juce::degreesToRadians(55.0f), true);
     setMouseDragSensitivity(200);
     setScrollWheelEnabled(true);
-    labels[0] = "LIVE"; labels[1] = "EINPFEIFEN"; labels[2] = "STANDALONE";
+    labels[0] = "LIVE";
+    labels[1] = "STATISCH";
+    labels[2] = "STANDALONE";
 }
 
 void ModeSelector::setLabels(const juce::String& a, const juce::String& b, const juce::String& c)
 {
-    labels[0] = a; labels[1] = b; labels[2] = c; repaint();
+    labels[0] = a; labels[1] = b; labels[2] = c;
+    repaint();
 }
 
-float ModeSelector::posAngle(int i) { return juce::degreesToRadians(-55.0f + 55.0f * (float)i); }
+float ModeSelector::posAngle(int i)
+{
+    return juce::degreesToRadians(-55.0f + 55.0f * (float)i);
+}
 
 juce::Point<float> ModeSelector::knobCentre() const
 {
@@ -1055,10 +1112,12 @@ void ModeSelector::mouseDown(const juce::MouseEvent& e)
 {
     auto p = e.getPosition().toFloat();
     auto c = knobCentre();
+
     if (c.getDistanceFrom(p) > knobRadius() * 1.6f)
     {
         const float ang = std::atan2(p.x - c.x, c.y - p.y);
-        int best = 0; float bd = 1.0e9f;
+        int best = 0;
+        float bd = 1.0e9f;
         for (int i = 0; i < 3; ++i)
         {
             const float d = std::abs(ang - posAngle(i));
@@ -1067,6 +1126,7 @@ void ModeSelector::mouseDown(const juce::MouseEvent& e)
         setValue((double)best, juce::sendNotificationSync);
         return;
     }
+
     juce::Slider::mouseDown(e);
 }
 
@@ -1077,11 +1137,15 @@ void ModeSelector::paint(juce::Graphics& g)
     const float R = knobRadius();
     const int sel = juce::roundToInt(getValue());
 
+    const float boxW = 74.0f * s;
+    const float boxH = 14.0f * s;
+
     for (int i = 0; i < 3; ++i)
     {
         const float a = posAngle(i);
         const bool active = (i == sel);
 
+        // Rastpunkt mit Luft zur Fluegelspitze (Spitze ~1.48 R)
         const float dr = R * 1.64f;
         juce::Point<float> dp(c.x + std::sin(a) * dr, c.y - std::cos(a) * dr);
         if (active)
@@ -1094,12 +1158,18 @@ void ModeSelector::paint(juce::Graphics& g)
         g.setColour(active ? rsui::jewelAmb.brighter(0.25f) : rsui::ink.withAlpha(0.6f));
         g.fillEllipse(dp.x - 2.2f * s, dp.y - 2.2f * s, 4.4f * s, 4.4f * s);
 
+        // Beschriftung: gross, aber immer vollstaendig im Component
         const float lr = R * 2.15f;
         juce::Point<float> lp(c.x + std::sin(a) * lr, c.y - std::cos(a) * lr);
-        auto box = juce::Rectangle<float>(lp.x - 32.0f * s, lp.y - 6.5f * s, 64.0f * s, 13.0f * s);
-        g.setFont(juce::FontOptions(9.2f * s, juce::Font::bold));
+
+        const float bx = juce::jlimit(boxW * 0.5f, (float)getWidth() - boxW * 0.5f, lp.x);
+        const float by = juce::jlimit(boxH * 0.5f, (float)getHeight() - boxH * 0.5f, lp.y);
+        auto box = juce::Rectangle<float>(bx - boxW * 0.5f, by - boxH * 0.5f, boxW, boxH);
+
+        g.setFont(juce::FontOptions(11.0f * s, juce::Font::bold));
         g.setColour(rsui::cream.withAlpha(0.28f));
-        g.drawFittedText(labels[i], box.translated(0.0f, 0.9f).toNearestInt(), juce::Justification::centred, 1, 1.0f);
+        g.drawFittedText(labels[i], box.translated(0.0f, 0.9f).toNearestInt(),
+            juce::Justification::centred, 1, 1.0f);
         g.setColour(active ? rsui::ink : rsui::ink.withAlpha(0.55f));
         g.drawFittedText(labels[i], box.toNearestInt(), juce::Justification::centred, 1, 1.0f);
     }
@@ -1109,7 +1179,7 @@ void ModeSelector::paint(juce::Graphics& g)
 }
 
 // ===========================================================================
-// SpeedSelector
+// SpeedSelector  (nur Piktogramme - der Name steht im speedLabel des Editors)
 // ===========================================================================
 SpeedSelector::SpeedSelector()
     : juce::Slider(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox)
@@ -1120,7 +1190,10 @@ SpeedSelector::SpeedSelector()
     setScrollWheelEnabled(true);
 }
 
-float SpeedSelector::posAngle(int i) { return juce::degreesToRadians(-90.0f + 60.0f * (float)i); }
+float SpeedSelector::posAngle(int i)
+{
+    return juce::degreesToRadians(-90.0f + 60.0f * (float)i);
+}
 
 juce::Point<float> SpeedSelector::knobCentre() const
 {
@@ -1136,10 +1209,12 @@ void SpeedSelector::mouseDown(const juce::MouseEvent& e)
 {
     auto p = e.getPosition().toFloat();
     auto c = knobCentre();
+
     if (c.getDistanceFrom(p) > knobRadius() * 1.6f)
     {
         const float ang = std::atan2(p.x - c.x, c.y - p.y);
-        int best = 0; float bd = 1.0e9f;
+        int best = 0;
+        float bd = 1.0e9f;
         for (int i = 0; i < 4; ++i)
         {
             const float d = std::abs(ang - posAngle(i));
@@ -1148,6 +1223,7 @@ void SpeedSelector::mouseDown(const juce::MouseEvent& e)
         setValue((double)best, juce::sendNotificationSync);
         return;
     }
+
     juce::Slider::mouseDown(e);
 }
 
@@ -1163,6 +1239,7 @@ void SpeedSelector::paint(juce::Graphics& g)
         const float a = posAngle(i);
         const bool active = (i == sel);
 
+        // Rastpunkt mit Luft zur Fluegelspitze
         const float dr = R * 1.64f;
         juce::Point<float> dp(c.x + std::sin(a) * dr, c.y - std::cos(a) * dr);
         if (active)
@@ -1175,9 +1252,11 @@ void SpeedSelector::paint(juce::Graphics& g)
         g.setColour(active ? rsui::jewelAmb.brighter(0.25f) : rsui::ink.withAlpha(0.6f));
         g.fillEllipse(dp.x - 2.2f * s, dp.y - 2.2f * s, 4.4f * s, 4.4f * s);
 
+        // Piktogramm aussen herum
         const float lr = R * 2.45f;
         juce::Point<float> lp(c.x + std::sin(a) * lr, c.y - std::cos(a) * lr);
-        auto box = juce::Rectangle<float>(lp.x - 14.0f * s, lp.y - 9.0f * s, 28.0f * s, 18.0f * s);
+        auto box = juce::Rectangle<float>(lp.x - 14.0f * s, lp.y - 9.0f * s,
+            28.0f * s, 18.0f * s);
 
         const auto colActive = active ? rsui::ink : rsui::ink.withAlpha(0.50f);
         const auto colEmboss = rsui::cream.withAlpha(0.28f);
@@ -1191,9 +1270,11 @@ void SpeedSelector::paint(juce::Graphics& g)
                 box.getHeight() / (float)icon.getHeight());
             const float iw = (float)icon.getWidth() * isc;
             const float ih = (float)icon.getHeight() * isc;
+
             auto t = juce::AffineTransform::scale(isc)
                 .translated(box.getCentreX() - iw * 0.5f,
                     box.getCentreY() - ih * 0.5f);
+
             g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
             g.setColour(colEmboss);
             g.drawImageTransformed(icon, t.translated(0.0f, 0.9f * s), true);
@@ -1213,7 +1294,6 @@ void SpeedSelector::paint(juce::Graphics& g)
     juce::Random rnd(777);
     rsui::drawRoarKnob(g, c, R, posAngle(sel), s, true, rnd);
 }
-
 // ===========================================================================
 // VU-Meter
 // ===========================================================================
@@ -1221,13 +1301,14 @@ VuMeter::VuMeter(const juce::String& caption_) : caption(caption_) {}
 
 float VuMeter::needleAngle(float vu) const
 {
-    const float p = juce::jlimit(0.0f, 1.0f, (vu + 20.0f) / 23.0f);
+    // Bereich -24 dB bis +3 dB = 27 dB Spanne
+    const float p = juce::jlimit(0.0f, 1.0f, (vu + 24.0f) / 27.0f);
     return juce::degreesToRadians(-48.0f + p * 96.0f);
 }
 
 void VuMeter::update(double dt)
 {
-    const float t = juce::jlimit(-24.0f, 6.0f, targetVu);
+    const float t = juce::jlimit(-28.0f, 6.0f, targetVu);
     currentVu += (float)((t - currentVu) * (1.0 - std::exp(-dt / 0.300)));
     if (currentVu > 0.0f) peakHold = 1.0f;
     else                  peakHold = juce::jmax(0.0f, peakHold - (float)dt * 1.6f);
@@ -1285,12 +1366,12 @@ void VuMeter::buildFace()
     juce::Point<float> pivot(inner.getCentreX(), inner.getBottom() + 6.0f * s);
     const float R = inner.getHeight() * 0.86f;
 
-    const float ticks[] = { -20, -10, -7, -5, -3, -1, 0, 1, 2, 3 };
+    const float ticks[] = { -24, -20, -15, -10, -7, -5, -3, -1, 0, 1, 2, 3 };
     for (float v : ticks)
     {
         const float a = needleAngle(v);
         const float sn = std::sin(a), cs = -std::cos(a);
-        const bool major = (v == -20 || v == -10 || v == -5 || v == -3 || v == 0 || v == 3);
+        const bool major = (v == -24 || v == -20 || v == -10 || v == -5 || v == -3 || v == 0 || v == 3);
         g.setColour(v >= 0.0f ? rsui::redZone : rsui::ink);
         g.drawLine(pivot.x + sn * R * (major ? 0.86f : 0.91f), pivot.y + cs * R * (major ? 0.86f : 0.91f),
             pivot.x + sn * R, pivot.y + cs * R, (major ? 1.6f : 1.0f) * s);
@@ -1298,7 +1379,7 @@ void VuMeter::buildFace()
         {
             juce::Point<float> lp(pivot.x + sn * R * 0.74f, pivot.y + cs * R * 0.74f);
             auto box = juce::Rectangle<float>(lp.x - 13.0f * s, lp.y - 6.0f * s, 26.0f * s, 12.0f * s);
-            g.setFont(juce::FontOptions(8.5f * s, juce::Font::bold));
+            g.setFont(juce::FontOptions(8.0f * s, juce::Font::bold));
             g.setColour(v >= 0.0f ? rsui::redZone : rsui::ink);
             g.drawText(v > 0 ? "+" + juce::String((int)v) : juce::String((int)v),
                 box.toNearestInt(), juce::Justification::centred);
@@ -1306,7 +1387,7 @@ void VuMeter::buildFace()
     }
 
     juce::Path arc;
-    arc.addCentredArc(pivot.x, pivot.y, R, R, 0.0f, needleAngle(-20.0f), needleAngle(0.0f), true);
+    arc.addCentredArc(pivot.x, pivot.y, R, R, 0.0f, needleAngle(-24.0f), needleAngle(0.0f), true);
     g.setColour(rsui::ink.withAlpha(0.85f));
     g.strokePath(arc, juce::PathStrokeType(1.3f * s));
     juce::Path redArc;
@@ -1385,7 +1466,6 @@ void VuMeter::paint(juce::Graphics& g)
     g.setColour(peakHold > 0.01f ? rsui::jewelRed : rsui::mix(rsui::panelLo, rsui::ink, 0.5f));
     g.fillEllipse(pc.x - pr, pc.y - pr, pr * 2.0f, pr * 2.0f);
 }
-
 // ===========================================================================
 // Spectrum  (-75 dB .. +5 dB)
 // ===========================================================================
@@ -1416,6 +1496,7 @@ void SpectrumView::paint(juce::Graphics& g)
     g.setColour(rsui::glass);
     g.fillRect(a);
 
+    // ---- Frequenzraster ----
     g.setFont(juce::FontOptions(8.5f * s));
     for (double f : { 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0 })
     {
@@ -1427,6 +1508,7 @@ void SpectrumView::paint(juce::Graphics& g)
             (int)x + 2, (int)a.getBottom() - 11, 34, 10, juce::Justification::left);
     }
 
+    // ---- dB-Raster: +5, 0, -15, -30, -45, -60, -75 ----
     for (double db : { 5.0, 0.0, -15.0, -30.0, -45.0, -60.0, -75.0 })
     {
         const float y = yFor(db, a);
@@ -1437,6 +1519,7 @@ void SpectrumView::paint(juce::Graphics& g)
             (int)a.getX() + 2, (int)y + 1, 30, 10, juce::Justification::left);
     }
 
+    // ---- Spektrum ----
     const auto& det = proc.getEngine().getDetector();
     const auto& spec = det.getSpectrum();
     const int bins = det.getNumSpectrumBins();
@@ -1461,10 +1544,12 @@ void SpectrumView::paint(juce::Graphics& g)
         juce::Path p;
         p.startNewSubPath(pts[0]);
         for (size_t i = 1; i < pts.size(); ++i) p.lineTo(pts[i]);
+
         juce::Path fill = p;
         fill.lineTo(pts.back().x, a.getBottom());
         fill.lineTo(pts.front().x, a.getBottom());
         fill.closeSubPath();
+
         g.setColour(rsui::phosphor.withAlpha(0.14f));
         g.fillPath(fill);
         g.setColour(rsui::phosphor.withAlpha(0.20f));
@@ -1473,6 +1558,7 @@ void SpectrumView::paint(juce::Graphics& g)
         g.strokePath(p, juce::PathStrokeType(1.2f * s));
     }
 
+    // ---- Kombinierte Filterkurve ----
     const double fs = proc.getAnalysisSampleRate();
     const auto& pub = proc.getEngine().getBank().published();
     const auto hc = juce::IIRCoefficients::makeHighPass(fs, (double)proc.getHpfFreq());
@@ -1485,6 +1571,7 @@ void SpectrumView::paint(juce::Graphics& g)
     {
         const double f = fMin * std::pow(fMax / fMin, (double)px / (double)w);
         double db = 0.0;
+
         for (const auto& n : pub)
         {
             if (!n.active.load(std::memory_order_relaxed)) continue;
@@ -1493,8 +1580,10 @@ void SpectrumView::paint(juce::Graphics& g)
             db += rsdsp::bellMagnitudeDb(n.freq.load(std::memory_order_relaxed), d,
                 n.widthOct.load(std::memory_order_relaxed), f, fs);
         }
+
         if (proc.isHpfEnabled()) db += 3.0 * biquadDb(hc, f, fs);
         if (proc.isLpfEnabled()) db += 2.0 * biquadDb(lc, f, fs);
+
         const float y = yFor(juce::jlimit(dbBottom, dbTop, db), a);
         const float x = a.getX() + (float)px;
         if (!started) { resp.startNewSubPath(x, y); started = true; }
@@ -1503,7 +1592,10 @@ void SpectrumView::paint(juce::Graphics& g)
     g.setColour(rsui::cream.withAlpha(0.80f));
     g.strokePath(resp, juce::PathStrokeType(1.3f * s));
 
+    // ---- Notch-Marker: Balken fuer alle, Text nur fuer dynamische ----
     g.setFont(juce::FontOptions(8.0f * s, juce::Font::bold));
+    std::vector<std::pair<float, juce::String>> fixedLabels;
+
     for (const auto& n : pub)
     {
         if (!n.active.load(std::memory_order_relaxed)) continue;
@@ -1511,15 +1603,70 @@ void SpectrumView::paint(juce::Graphics& g)
         if (d > -0.5f) continue;
         const float f = n.freq.load(std::memory_order_relaxed);
         if (f < fMin || f > fMax) continue;
+
         const float x = xFor(f, a);
-        const auto col = n.fixed.load(std::memory_order_relaxed) ? rsui::jewelAmb : rsui::phosphor;
+        const bool isFixed = n.fixed.load(std::memory_order_relaxed);
+        const auto col = isFixed ? rsui::jewelAmb : rsui::phosphor;
+
         g.setColour(col.withAlpha(0.85f));
-        g.fillRect(juce::Rectangle<float>(x - 1.0f, yFor(0.0, a), 2.0f, yFor(d, a) - yFor(0.0, a)));
-        g.setColour(col);
-        g.drawText(juce::String(juce::roundToInt(f)),
-            (int)x - 22, (int)yFor(d, a) - 11, 44, 10, juce::Justification::centred);
+        g.fillRect(juce::Rectangle<float>(x - 1.0f, yFor(0.0, a), 2.0f,
+            yFor(d, a) - yFor(0.0, a)));
+
+        if (isFixed)
+        {
+            fixedLabels.emplace_back(x, juce::String(juce::roundToInt(f)) + " Hz");
+        }
+        else
+        {
+            g.setColour(col);
+            g.drawText(juce::String(juce::roundToInt(f)),
+                (int)x - 22, (int)yFor(d, a) - 11, 44, 10,
+                juce::Justification::centred);
+        }
     }
 
+    // ---- Feste Frequenzen unten, bei Ueberlappung eine Zeile hoch ----
+    std::sort(fixedLabels.begin(), fixedLabels.end(),
+        [](const std::pair<float, juce::String>& p,
+            const std::pair<float, juce::String>& q) { return p.first < q.first; });
+
+    struct Placed { float x, halfW; int line; };
+    std::vector<Placed> placed;
+    const float lineH = 13.0f * s;
+    const float bottomY = a.getBottom() - 14.0f * s;
+
+    for (const auto& fl : fixedLabels)
+    {
+        const float x = fl.first;
+        const auto& txt = fl.second;
+        const float halfW = (float)txt.length() * (8.0f * s) * 0.32f + 4.0f * s;
+
+        int line = 1;
+        for (int attempt = 0; attempt < 2; ++attempt)
+        {
+            bool clash = false;
+            for (const auto& p : placed)
+                if (p.line == attempt && std::abs(p.x - x) < p.halfW + halfW)
+                {
+                    clash = true; break;
+                }
+
+            if (!clash) { line = attempt; break; }
+        }
+        placed.push_back({ x, halfW, line });
+
+        const float y = bottomY - (float)line * lineH;
+        const int   ix = (int)(x - halfW);
+        const int   iw = (int)(halfW * 2.0f);
+        const int   ih = (int)lineH;
+
+        g.setColour(rsui::cream.withAlpha(0.30f));
+        g.drawText(txt, ix, (int)y + 1, iw, ih, juce::Justification::centred);
+        g.setColour(rsui::jewelAmb);
+        g.drawText(txt, ix, (int)y, iw, ih, juce::Justification::centred);
+    }
+
+    // ---- Scanlines, Glasreflex, Rahmen, Gebrauchsspuren ----
     g.setColour(juce::Colours::black.withAlpha(0.10f));
     for (float y = a.getY(); y < a.getBottom(); y += 3.0f)
         g.drawHorizontalLine((int)y, a.getX(), a.getRight());
@@ -1538,7 +1685,6 @@ void SpectrumView::paint(juce::Graphics& g)
     rsui::drawScrew(g, { r.getX() + 4.5f * s, r.getBottom() - 4.5f * s }, 2.2f * s, rnd);
     rsui::drawScrew(g, { r.getRight() - 4.5f * s, r.getBottom() - 4.5f * s }, 2.2f * s, rnd);
 }
-
 // ===========================================================================
 // InfoPopup
 // ===========================================================================
@@ -1582,14 +1728,18 @@ void InfoPopup::present(const juce::String& text, juce::Point<int> mouseLocal,
 void InfoPopup::paint(juce::Graphics& g)
 {
     auto r = getLocalBounds().toFloat();
+
     juce::ColourGradient gr(rsui::vuPaper, r.getX(), r.getY(),
         rsui::vuPaper2, r.getX(), r.getBottom(), false);
     g.setGradientFill(gr);
     g.fillRoundedRectangle(r, 5.0f);
+
     juce::Random rnd(31);
     rsui::drawWear(g, r, rnd, 12, 0.6f);
+
     g.setColour(rsui::panelEdge);
     g.drawRoundedRectangle(r.reduced(0.5f), 5.0f, 1.3f);
+
     layout.draw(g, r.reduced(padX * lastScale, padY * lastScale));
 }
 
@@ -1694,7 +1844,7 @@ juce::String BugReportOverlay::gatherSnapshot() const
 
     const auto& st = proc.getEngine().getSettings();
     const juce::String modeStr = st.mode == rsdsp::FeedbackEngine::Mode::live ? "Live"
-        : st.mode == rsdsp::FeedbackEngine::Mode::setup ? "Einpfeifen"
+        : st.mode == rsdsp::FeedbackEngine::Mode::setup ? "Statisch"
         : "Standalone";
     s << "Modus:        " << modeStr << "\n";
     s << "Messung:      " << (proc.isMeasuring() ? "aktiv" : "aus") << "\n";
@@ -1702,8 +1852,10 @@ juce::String BugReportOverlay::gatherSnapshot() const
         << ", Hold=" << juce::String((int)(st.holdSeconds * 1000.0)) << "ms"
         << ", Release=" << juce::String(st.releaseSeconds, 2) << "s"
         << ", Speed-Div=" << st.hopDivisor << "\n";
-    s << "HPF:          " << (proc.isHpfEnabled() ? "an " : "aus ") << juce::String((int)proc.getHpfFreq()) << " Hz\n";
-    s << "LPF:          " << (proc.isLpfEnabled() ? "an " : "aus ") << juce::String((int)proc.getLpfFreq()) << " Hz\n";
+    s << "HPF:          " << (proc.isHpfEnabled() ? "an " : "aus ")
+        << juce::String((int)proc.getHpfFreq()) << " Hz\n";
+    s << "LPF:          " << (proc.isLpfEnabled() ? "an " : "aus ")
+        << juce::String((int)proc.getLpfFreq()) << " Hz\n";
 
     const auto& pub = proc.getEngine().getBank().published();
     int active = 0, fixed = 0;
@@ -1736,7 +1888,8 @@ void BugReportOverlay::doSend()
 {
     const juce::String comment = commentBox.getText().trim();
     juce::String body = buildReportBody(comment);
-    if (body.length() > 1900) body = body.substring(0, 1900) + "\n...(gekuerzt)";
+    if (body.length() > 1900)
+        body = body.substring(0, 1900) + "\n...(gekuerzt)";
 
     const juce::String subject = juce::String("Bugreport fuer RS Roar Ripper v") + getVersionString();
     juce::SystemClipboard::copyTextToClipboard(juce::String("Betreff: ") + subject + "\n\n" + body);
@@ -1754,6 +1907,7 @@ void BugReportOverlay::paint(juce::Graphics& g)
 {
     g.fillAll(rsui::ink.withAlpha(0.72f));
     auto panelR = getPanelBounds().toFloat();
+
     juce::ColourGradient gr(rsui::panelHi, panelR.getX(), panelR.getY(),
         rsui::panelLo, panelR.getX(), panelR.getBottom(), false);
     g.setGradientFill(gr);
@@ -1772,14 +1926,17 @@ void BugReportOverlay::paint(juce::Graphics& g)
 void BugReportOverlay::resized()
 {
     auto panelR = getPanelBounds().reduced(20, 14);
+
     titleLabel.setBounds(panelR.removeFromTop(22));
     panelR.removeFromTop(6);
     infoBox.setBounds(panelR.removeFromTop(juce::jmin(100, panelR.getHeight() / 2)));
     panelR.removeFromTop(6);
+
     auto buttons = panelR.removeFromBottom(26);
     panelR.removeFromBottom(4);
     auto hint = panelR.removeFromBottom(14);
     panelR.removeFromBottom(4);
+
     commentBox.setBounds(panelR);
     hintLabel.setBounds(hint);
     sendButton.setBounds(buttons.removeFromRight(100));
@@ -1792,7 +1949,6 @@ void BugReportOverlay::mouseDown(const juce::MouseEvent& e)
     if (!getPanelBounds().contains(e.getPosition()))
         setVisible(false);
 }
-
 // ===========================================================================
 // Editor
 // ===========================================================================
@@ -1817,6 +1973,13 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
     cpuLabel.setColour(juce::Label::textColourId, rsui::ink);
     cpuLabel.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(cpuLabel);
+
+    // Beschriftung des Speed-Waehlers als echtes Component
+    speedLabel.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    speedLabel.setColour(juce::Label::textColourId, rsui::ink);
+    speedLabel.setJustificationType(juce::Justification::centred);
+    speedLabel.setText("GESCHWINDIGKEIT", juce::dontSendNotification);
+    addAndMakeVisible(speedLabel);
 
     addAndMakeVisible(modeSelector);
     modeSelector.onValueChange = [this] { updateVisibility(); };
@@ -1847,10 +2010,15 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
         {
             fileChooser = std::make_unique<juce::FileChooser>(
                 "Preset exportieren",
-                juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile("RoarRipper.xml"), "*.xml");
-            fileChooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+                juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile("RoarRipper.xml"),
+                "*.xml");
+            fileChooser->launchAsync(juce::FileBrowserComponent::saveMode
+                | juce::FileBrowserComponent::canSelectFiles,
                 [pp = &proc](const juce::FileChooser& c)
-                { auto f = c.getResult(); if (f != juce::File()) { pp->exportToFile(f); appendBugLog("Preset exportiert"); } });
+                {
+                    auto f = c.getResult();
+                    if (f != juce::File()) { pp->exportToFile(f); appendBugLog("Preset exportiert"); }
+                });
         };
     addAndMakeVisible(exportButton);
 
@@ -1859,9 +2027,13 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
             fileChooser = std::make_unique<juce::FileChooser>(
                 "Preset importieren",
                 juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.xml");
-            fileChooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+            fileChooser->launchAsync(juce::FileBrowserComponent::openMode
+                | juce::FileBrowserComponent::canSelectFiles,
                 [pp = &proc](const juce::FileChooser& c)
-                { auto f = c.getResult(); if (f != juce::File()) { pp->importFromFile(f); appendBugLog("Preset importiert"); } });
+                {
+                    auto f = c.getResult();
+                    if (f != juce::File()) { pp->importFromFile(f); appendBugLog("Preset importiert"); }
+                });
         };
     addAndMakeVisible(importButton);
 
@@ -1895,15 +2067,24 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
     setupKnob(hpf, "hpfFreq", "HPF");
     setupKnob(lpf, "lpfFreq", "LPF");
 
+    // Ein/Aus direkt im Regler (Klick = Laempchen)
     hpf.slider.setPowerParameter(proc.parameters, "hpfEnabled");
     lpf.slider.setPowerParameter(proc.parameters, "lpfEnabled");
 
-    sens.slider.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v * 100.0)) + " %"; };
-    sens.slider.valueFromTextFunction = [](const juce::String& t) { return t.getDoubleValue() / 100.0; };
-    hold.slider.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v)) + " ms"; };
-    hold.slider.valueFromTextFunction = [](const juce::String& t) { return t.getDoubleValue(); };
-    release.slider.textFromValueFunction = [](double v) { return juce::String(v, 2) + " s"; };
-    release.slider.valueFromTextFunction = [](const juce::String& t) { return t.getDoubleValue(); };
+    sens.slider.textFromValueFunction = [](double v)
+        { return juce::String(juce::roundToInt(v * 100.0)) + " %"; };
+    sens.slider.valueFromTextFunction = [](const juce::String& t)
+        { return t.getDoubleValue() / 100.0; };
+
+    hold.slider.textFromValueFunction = [](double v)
+        { return juce::String(juce::roundToInt(v)) + " ms"; };
+    hold.slider.valueFromTextFunction = [](const juce::String& t)
+        { return t.getDoubleValue(); };
+
+    release.slider.textFromValueFunction = [](double v)
+        { return juce::String(v, 2) + " s"; };
+    release.slider.valueFromTextFunction = [](const juce::String& t)
+        { return t.getDoubleValue(); };
 
     auto hzText = [](double v)
         {
@@ -1920,7 +2101,8 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
     abAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.parameters, "ab", bypassSwitch);
     muteAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.parameters, "mute", muteSwitch);
 
-    infoTargets = { &modeSelector, &speedSelector, &measureSwitch, &bypassSwitch, &muteSwitch,
+    infoTargets = { &modeSelector, &speedSelector, &speedLabel,
+                    &measureSwitch, &bypassSwitch, &muteSwitch,
                     &sens.slider, &hold.slider, &release.slider, &hpf.slider, &lpf.slider,
                     &resetButton, &exportButton, &importButton,
                     &infoButton, &flagButton, &coffeeButton, &bugButton,
@@ -1934,6 +2116,7 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
     setSize((int)DW, (int)DH);
 
     updateVisibility();
+
     lastTick = juce::Time::getMillisecondCounterHiRes();
     startTimerHz(30);
     appendBugLog("Editor gestartet, Version v" + getVersionString());
@@ -1959,8 +2142,9 @@ void RoarRipperAudioProcessorEditor::setLanguage(bool en)
 {
     english = en;
     flagButton.setEnglish(en);
-    modeSelector.setLabels("LIVE", en ? "RING OUT" : "EINPFEIFEN", "STANDALONE");
+    modeSelector.setLabels("LIVE", en ? "STATIC" : "STATISCH", "STANDALONE");
     measureSwitch.setCaption(en ? "MEASUREMENT" : "MESSUNG");
+    speedLabel.setText(en ? "SPEED" : "GESCHWINDIGKEIT", juce::dontSendNotification);
     setupInfoTexts();
     infoPopup.setVisible(false);
     hoverSeconds = 0.0;
@@ -1979,28 +2163,32 @@ void RoarRipperAudioProcessorEditor::setupInfoTexts()
         bugButton.setTooltip("Bugreport: Oeffnet ein Fenster mit Kommentarfeld und sendet einen Report an info@roarsound.de.");
 
         vuIn.setTip("Eingangspegel (VU): Pegel vor der Bearbeitung. 0 VU entspricht -18 dBFS. "
-            "Die Nadel folgt dem Signal mit etwa 300 ms Traegheit, wie bei einem echten VU-Meter.");
-        vuOut.setTip("Ausgangspegel (VU): Pegel nach HPF/LPF und Notches. "
+            "Skala von -24 bis +3. Die Nadel folgt dem Signal mit etwa 300 ms Traegheit, "
+            "wie bei einem echten VU-Meter.");
+        vuOut.setTip("Ausgangspegel (VU): Pegel nach HPF/LPF und Notches. Skala von -24 bis +3. "
             "Das rote Laempchen leuchtet, sobald 0 VU ueberschritten wird.");
         spectrum.setTip("Spectrum: Analyse des Ausgangssignals, Anzeigebereich -75 bis +5 dB, "
             "mit der kombinierten Filterkurve. Bernsteinfarbene Marker = fest eingebrannte "
-            "Notches, gruene Marker = dynamische Notches.");
+            "Notches (Frequenzen unten am Rand, bei Bedarf zweizeilig), "
+            "gruene Marker = dynamische Notches.");
 
-        modeSelector.setTooltip("Betriebsart: Live = automatische Notches. Einpfeifen = Notches werden fest eingebrannt. "
+        modeSelector.setTooltip("Betriebsart: Live = automatische Notches. Statisch = Notches werden fest eingebrannt. "
             "Standalone = kompaktes Half-Rack ohne RTA und ohne HPF/LPF. "
             "Klick auf die Beschriftung oder drehen.");
-        speedSelector.setTooltip("Speed: Analyserate der Erkennung. Von links nach rechts: "
+        speedSelector.setTooltip("Geschwindigkeit: Analyserate der Erkennung. Von links nach rechts: "
             "Schildkroete (am sparsamsten), Elefant, Loewe, Gepard (am schnellsten, hoechste CPU). "
             "Der Fluegel zeigt auf die aktive Stufe.");
+        speedLabel.setTooltip("Geschwindigkeit: Analyserate der Erkennung. Die vier Piktogramme stehen fuer "
+            "Schildkroete, Elefant, Loewe und Gepard.");
         measureSwitch.setTooltip("Messung: Ein startet die Einmessung, das Laempchen leuchtet. "
-            "Aus beendet die Messung und haelt alle erkannten Notches fest. "
-            "Nur im Modus Einpfeifen verfuegbar.");
+            "Waehrend der Messung arbeiten nur die festen Notches, dynamische sind pausiert. "
+            "Aus beendet die Messung und haelt alle erkannten Notches fest.");
         resetButton.setTooltip("Reset: Entfernt alle festen und dynamischen Notches. Im Standalone-Modus ausgeblendet.");
         bypassSwitch.setTooltip("Bypass: Signal unbearbeitet durchleiten. Alle Notches bleiben intern erhalten.");
         muteSwitch.setTooltip("Mute: Ausgang wird mit 5 ms Rampe stummgeschaltet.");
         exportButton.setTooltip("Export: Speichert Einstellungen und feste Notches als XML.");
         importButton.setTooltip("Import: Laedt ein XML-Preset inklusive fester Notches.");
-        sens.slider.setTooltip("Sensitivity: Empfindlichkeit der Feedback-Erkennung. Ziehen zum Aendern.");
+        sens.slider.setTooltip("Sensitivity: Empfindlichkeit der Feedback-Erkennung. Ziehen zum Aendern. Standard 70 %.");
         hold.slider.setTooltip("Hold: Haltezeit nach dem letzten Feedback-Treffer. Ziehen zum Aendern.");
         release.slider.setTooltip("Release: Rueckfahrzeit des Notches auf 0 dB. Ziehen zum Aendern.");
         hpf.slider.setTooltip("HPF: Hochpass 36 dB/Oktave. Kurz klicken schaltet ein/aus (gruenes Laempchen). "
@@ -2020,27 +2208,32 @@ void RoarRipperAudioProcessorEditor::setupInfoTexts()
         bugButton.setTooltip("Bug report: opens a comment window and sends a report to info@roarsound.de.");
 
         vuIn.setTip("Input level (VU): level before processing. 0 VU equals -18 dBFS. "
-            "The needle follows the signal with about 300 ms ballistics, like a real VU meter.");
-        vuOut.setTip("Output level (VU): level after HPF/LPF and notches. "
+            "Scale from -24 to +3. The needle follows the signal with about 300 ms ballistics, "
+            "like a real VU meter.");
+        vuOut.setTip("Output level (VU): level after HPF/LPF and notches. Scale from -24 to +3. "
             "The red jewel lights up as soon as 0 VU is exceeded.");
         spectrum.setTip("Spectrum: analysis of the output signal, display range -75 to +5 dB, "
-            "plus the combined filter curve. Amber markers = burned-in notches, "
+            "plus the combined filter curve. Amber markers = burned-in notches "
+            "(frequencies at the bottom edge, two rows if needed), "
             "green markers = dynamic notches.");
 
-        modeSelector.setTooltip("Mode: Live = automatic notches. Ring Out = notches are burned in permanently. "
-            "Standalone = compact half-rack without RTA and without HPF/LPF. Click a label or drag.");
+        modeSelector.setTooltip("Mode: Live = automatic notches. Static = notches are burned in permanently. "
+            "Standalone = compact half-rack without RTA and without HPF/LPF. "
+            "Click a label or drag.");
         speedSelector.setTooltip("Speed: analysis rate of detection. Left to right: "
             "Turtle (most efficient), Elephant, Lion, Cheetah (fastest, highest CPU). "
             "The wing points at the active step.");
-        measureSwitch.setTooltip("Measurement: On starts the ring-out measurement, the jewel lights up. "
-            "Off stops the measurement and holds all detected notches. "
-            "Available in Ring Out mode only.");
+        speedLabel.setTooltip("Speed: analysis rate of detection. The four pictograms stand for "
+            "turtle, elephant, lion and cheetah.");
+        measureSwitch.setTooltip("Measurement: On starts the measurement, the jewel lights up. "
+            "While measuring, only fixed notches are active, dynamic ones are paused. "
+            "Off stops the measurement and holds all detected notches.");
         resetButton.setTooltip("Reset: removes all fixed and dynamic notches. Hidden in Standalone mode.");
         bypassSwitch.setTooltip("Bypass: passes signal unprocessed. Notches remain active internally.");
         muteSwitch.setTooltip("Mute: output muted with a 5 ms ramp.");
         exportButton.setTooltip("Export: saves settings and fixed notches as XML.");
         importButton.setTooltip("Import: loads an XML preset including fixed notches.");
-        sens.slider.setTooltip("Sensitivity: feedback detection sensitivity. Drag to change.");
+        sens.slider.setTooltip("Sensitivity: feedback detection sensitivity. Drag to change. Default 70 %.");
         hold.slider.setTooltip("Hold: time a notch stays after the last feedback hit. Drag to change.");
         release.slider.setTooltip("Release: time a notch takes to return to 0 dB. Drag to change.");
         hpf.slider.setTooltip("HPF: high-pass 36 dB/octave. A short click toggles on/off (green jewel). "
@@ -2051,7 +2244,6 @@ void RoarRipperAudioProcessorEditor::setupInfoTexts()
         versionLabel.setInfoText("Version: build version of the plugin.");
     }
 }
-
 void RoarRipperAudioProcessorEditor::updateVisibility()
 {
     const int m = juce::roundToInt(modeSelector.getValue());
@@ -2061,7 +2253,7 @@ void RoarRipperAudioProcessorEditor::updateVisibility()
     spectrum.setVisible(!standalone);
     exportButton.setVisible(!standalone);
     importButton.setVisible(!standalone);
-    measureSwitch.setVisible(ringOut);
+    measureSwitch.setVisible(!standalone);   // Live und Statisch, nicht Standalone
     resetButton.setVisible(!standalone);
 
     for (auto* k : { &hold, &release, &hpf, &lpf })
@@ -2070,7 +2262,9 @@ void RoarRipperAudioProcessorEditor::updateVisibility()
         k->label.setVisible(!standalone);
     }
 
+    // Speed bleibt in allen Modi sichtbar
     speedSelector.setVisible(true);
+    speedLabel.setVisible(true);
 
     infoPopup.setVisible(false);
     hoverSeconds = 0.0;
@@ -2159,7 +2353,8 @@ void RoarRipperAudioProcessorEditor::updateInfoHover(double dt)
         infoPopup.setVisible(false);
     }
 
-    if (hoverTarget == nullptr) return;
+    if (hoverTarget == nullptr)
+        return;
 
     const bool exempt = (hoverTarget == &infoButton
         || hoverTarget == &coffeeButton
@@ -2172,13 +2367,18 @@ void RoarRipperAudioProcessorEditor::updateInfoHover(double dt)
     }
 
     hoverSeconds += dt;
-    if (hoverSeconds < 1.0) return;
+    if (hoverSeconds < 1.0)
+        return;
 
     juce::String tip;
     if (auto* tc = dynamic_cast<juce::TooltipClient*>(hoverTarget))
         tip = tc->getTooltip();
 
-    if (tip.isEmpty()) { infoPopup.setVisible(false); return; }
+    if (tip.isEmpty())
+    {
+        infoPopup.setVisible(false);
+        return;
+    }
 
     if (!infoPopup.isVisible())
         infoPopup.present(tip, getMouseXYRelative(), getLocalBounds(), uiScale);
@@ -2255,7 +2455,8 @@ void RoarRipperAudioProcessorEditor::buildPanel()
         for (int i = 0; i < 2; ++i)
         {
             const float cy = (float)H * (i == 0 ? 0.22f : 0.78f);
-            auto slot = juce::Rectangle<float>(e.getCentreX() - 6.0f * s, cy - 9.0f * s, 12.0f * s, 18.0f * s);
+            auto slot = juce::Rectangle<float>(e.getCentreX() - 6.0f * s, cy - 9.0f * s,
+                12.0f * s, 18.0f * s);
             g.setColour(rsui::ink.withAlpha(0.80f));
             g.fillRoundedRectangle(slot, 5.0f * s);
             g.setColour(rsui::cream.withAlpha(0.18f));
@@ -2297,12 +2498,16 @@ void RoarRipperAudioProcessorEditor::paint(juce::Graphics& g)
         };
 
     rsui::engravedText(g, "RS ROAR RIPPER", R(56.0f, 12.0f, 250.0f, 24.0f),
-        juce::FontOptions(21.0f * s, juce::Font::bold), juce::Justification::centredLeft);
+        juce::FontOptions(21.0f * s, juce::Font::bold),
+        juce::Justification::centredLeft);
 
+    // Modellzeile nur im breiten Layout
     if (!standalone)
         rsui::engravedText(g, "FEEDBACK SUPPRESSOR", R(312.0f, 18.0f, 220.0f, 14.0f),
-            juce::FontOptions(9.0f * s, juce::Font::bold), juce::Justification::centredLeft);
+            juce::FontOptions(9.0f * s, juce::Font::bold),
+            juce::Justification::centredLeft);
 
+    // Power-Jewel + Status
     {
         const float lampX = standalone ? 250.0f : 650.0f;
         const float statX = standalone ? 266.0f : 668.0f;
@@ -2329,12 +2534,14 @@ void RoarRipperAudioProcessorEditor::paint(juce::Graphics& g)
 
         rsui::engravedText(g, muted ? "MUTE" : (byp ? "BYPASS" : "ACTIVE"),
             R(statX, 18.0f, statW, 12.0f),
-            juce::FontOptions(8.5f * s, juce::Font::bold), juce::Justification::centredLeft);
+            juce::FontOptions(8.5f * s, juce::Font::bold),
+            juce::Justification::centredLeft);
     }
 
     rsui::engravedText(g, "ROARSOUND - MADE IN GERMANY - ZERO LATENCY",
         R(56.0f, 306.0f, 520.0f, 16.0f),
-        juce::FontOptions(9.0f * s, juce::Font::bold), juce::Justification::centredLeft);
+        juce::FontOptions(9.0f * s, juce::Font::bold),
+        juce::Justification::centredLeft);
 }
 
 void RoarRipperAudioProcessorEditor::resized()
@@ -2380,7 +2587,7 @@ void RoarRipperAudioProcessorEditor::resized()
     lampRect = standalone ? R(244.0f, 12.0f, 110.0f, 26.0f)
         : R(644.0f, 12.0f, 120.0f, 26.0f);
 
-    // ---- Immer ortsfest ----
+    // ---- Immer ortsfest: Input-VU, Mode-Schalter, Reset-Position ----
     vuIn.setBounds(R(56.0f, 54.0f, 188.0f, 126.0f));
     modeSelector.setBounds(R(56.0f, 184.0f, 164.0f, 112.0f));
     resetButton.setBounds(R(230.0f, 184.0f, 52.0f, 20.0f));
@@ -2391,18 +2598,24 @@ void RoarRipperAudioProcessorEditor::resized()
         {
             t.setBounds(R(x, rowY, 52.0f, rowH));
         };
+
     auto placeKnob = [&](Knob& k, float x, float w)
         {
             auto cell = R(x, rowY, w, rowH);
             k.label.setFont(juce::FontOptions(9.0f * s, juce::Font::bold));
             k.label.setBounds(cell.removeFromTop(juce::roundToInt(13.0f * s)));
             k.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false,
-                juce::roundToInt((w - 26.0f) * s), juce::roundToInt(15.0f * s));
+                juce::roundToInt((w - 26.0f) * s),
+                juce::roundToInt(15.0f * s));
             k.slider.setBounds(cell);
         };
 
+    // Beschriftung des Speed-Waehlers skaliert mit dem Fenster
+    speedLabel.setFont(juce::FontOptions(9.0f * s, juce::Font::bold));
+
     if (!standalone)
     {
+        // ---- Referenz-Layout (Einpfeifen / Live) ----
         spectrum.setBounds(R(256.0f, 54.0f, 688.0f, 126.0f));
         vuOut.setBounds(R(956.0f, 54.0f, 188.0f, 126.0f));
 
@@ -2416,13 +2629,15 @@ void RoarRipperAudioProcessorEditor::resized()
         placeKnob(hold, 722.0f, 92.0f);
         placeKnob(release, 822.0f, 92.0f);
 
+        speedLabel.setBounds(R(926.0f, 190.0f, 172.0f, 14.0f));
         speedSelector.setBounds(R(926.0f, rowY, 172.0f, rowH));
     }
     else
     {
+        // ---- Standalone: Half-Rack, alles nach links aufgerueckt ----
         spectrum.setBounds({});
 
-        placeToggle(measureSwitch, 230.0f);   // unsichtbar
+        placeToggle(measureSwitch, 230.0f);   // unsichtbar, Referenzposition
         placeToggle(bypassSwitch, 230.0f);
         placeToggle(muteSwitch, 286.0f);
 
@@ -2432,7 +2647,10 @@ void RoarRipperAudioProcessorEditor::resized()
         placeKnob(hold, 722.0f, 92.0f);   // unsichtbar
         placeKnob(release, 822.0f, 92.0f);   // unsichtbar
 
+        speedLabel.setBounds(R(452.0f, 190.0f, 172.0f, 14.0f));
         speedSelector.setBounds(R(452.0f, rowY, 172.0f, rowH));
+
+        // Output-VU: rechte Kante = rechte Kante Speed (452 + 172 = 624)
         vuOut.setBounds(R(436.0f, 54.0f, 188.0f, 126.0f));
     }
 

@@ -29,6 +29,27 @@ namespace rsdsp
         static constexpr int maxSuspects = 8;
         static constexpr double suspectSeconds = 0.25;
 
+        // -3-dB-Bandbreite eines Spektralpeaks, gemessen in Bins.
+        float peakWidthBins(int peakBin, float limitDb = 3.0f) const noexcept
+        {
+            const int nb = getNumSpectrumBins();
+            if (peakBin < 2 || peakBin > nb - 3)
+                return 1.0e9f;
+
+            const auto& sp = getSpectrum();
+            const float top = sp[(size_t)peakBin].load(std::memory_order_relaxed);
+
+            int lo = peakBin;
+            int hi = peakBin;
+
+            while (lo > 1 && top - sp[(size_t)(lo - 1)].load(std::memory_order_relaxed) < limitDb)
+                --lo;
+            while (hi < nb - 2 && top - sp[(size_t)(hi + 1)].load(std::memory_order_relaxed) < limitDb)
+                ++hi;
+
+            return (float)(hi - lo + 1);
+        }
+
         // Einmess-Messung: Detektor ist empfindlicher und bestaetigt schneller,
         // weil dort keine Musik im Signal ist, die faelschlich erkannt werden koennte.
         static constexpr float measureRelaxDb = 3.0f;   // PNPR-/PAPR-Schwellen sinken um diesen Wert
@@ -368,8 +389,8 @@ namespace rsdsp
 
             const double s = sensitivity;
             const float relax = measurementMode ? measureRelaxDb : 0.0f;
-            const float pnprMin = (float)(24.0 - 10.0 * s) - relax;
-            const float paprMin = (float)(28.0 - 8.0 * s) - relax;
+            const float pnprMin = (float)(28.0 - 10.0 * s) - relax; // Nachbarabstand muss 4 dB größer sein
+            const float paprMin = (float)(32.0 - 8.0 * s) - relax;  // Pegelüberhöhung muss 4 dB größer sein
             const float floorDb = -72.0f;
 
             numPeaks = 0;
@@ -402,6 +423,8 @@ namespace rsdsp
                 Candidate c;
                 c.bin = pk.bin;
                 c.level = pk.level;
+
+              
 
                 // Empfehlung 4: Oberton-Test wieder aktiv
                 c.harmonic = isPartOfHarmonicSeries(i);
@@ -484,7 +507,7 @@ namespace rsdsp
                     tr.frames = 0;
 
                 // Empfehlung 9: Basis-Bestaetigung auf 5 Frames bei s=0.8
-                int required = (int)std::lround(16.0 - 14.0 * s);
+                int required = (int)std::lround(14.0 - 12.0 * s);
                 double minSlope = -0.12;
 
                 if (cd.harmonic)
@@ -504,7 +527,26 @@ namespace rsdsp
                         required = std::max(4, (required * 3) / 4);
                 }
 
-                // Empfehlung 6: Spektraler Fluss beschleunigt die Bestaetigung
+                // ---- Schmalband-Gate ------------------------------------------------
+               // Ein Howl ist extrem schmalbandig (~1.5-2 Bins). Sprachformanten und
+               // Gerauschbursts sind breiter und sterben hier. Bei sehr schwachen
+               // Peaks (gerade entstehendes Feedback) ist die Breite im Rauschen
+               // unverlaesslich -> Gate erst ab -60 dBFS.
+                {
+                    const auto& sp = getSpectrum();
+                    const float top = sp[(size_t)cd.bin].load(std::memory_order_relaxed);
+
+                    if (top > -60.0f)
+                    {
+                        const bool  meas = (relax > 0.0f);
+                        const float limit = meas ? kMaxHowlWidthBins * 1.5f : kMaxHowlWidthBins;
+                        if (peakWidthBins((int)cd.bin) > limit)
+                            return {};
+                    }
+                }
+                // Spektraler Fluss beschleunigt die Bestaetigung bei plaetzlichem Anstieg.
+        // Transienten (Schlagzeug, Plosive) sind breitbandig und sterben bereits
+        // im Gate – hier kommt nur echtes, anschwellendes Feedback durch.
                 if (maxFlux > 6.0f && fluxBin > 0
                     && std::abs((double)fluxBin - cd.bin) < 2.0)
                 {

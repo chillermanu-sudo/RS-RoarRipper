@@ -164,3 +164,4 @@ Mail: info@roarsound.de · Coffee: <https://paypal.me/RoarSound>
 | Version | Highlights |
 |---|---|
 | 1.4.9 | Safari-Retro-GUI, Half-Rack-Standalone, 6+18 Notches, Q 20 dynamisch, Hann-Goertzel, Sensitivity 70 % |
+| 1.5.0 | Messung auch im Live-Modus (nur feste Notches aktiv), Modus "Statisch" (vorher "Einpfeifen"), Modusnamen DE/EN |

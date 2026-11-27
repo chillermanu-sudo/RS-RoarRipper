@@ -62,7 +62,7 @@ namespace rsdsp
         void setMeasuring(bool m) noexcept
         {
             measuring = m;
-            detector.setMeasurementMode(measuring && settings.mode == Mode::setup);
+            detector.setMeasurementMode(measuring);   // Messung in jedem Modus
         }
 
         bool isMeasuring() const noexcept { return measuring; }
@@ -115,7 +115,14 @@ namespace rsdsp
                 downmix(data, numChannels, numSamples);
                 goertzel.process(mono.data(), numSamples);
             }
-
+            // Waehrend Messung arbeiten nur feste Notches:
+        // dynamische werden ausgblendet und erst nach Messende wieder aktiv.
+            if (measuring)
+            {
+                for (auto& s : bank.getSlots())
+                    if (s.active && !s.fixed)
+                        s.targetDb = 0.0;   // blendet ueber die Release-Rampe sanft aus
+            }
             bank.process(data, numChannels, numSamples);
             downmix(data, numChannels, numSamples);
 
@@ -374,7 +381,7 @@ namespace rsdsp
             auto& slots = bank.getSlots();
 
             // 1) Besteht bereits ein dynamischer Notch in der Naehe?
-            const int dyn = findDynamicSlot(ev.freq);
+            const int dyn = measuring ? -1 : findDynamicSlot(ev.freq);
             if (dyn >= 0)
             {
                 auto& s = slots[(size_t)dyn];
@@ -412,7 +419,7 @@ namespace rsdsp
             }
 
             // 3) Neuen Slot anlegen
-            const bool wantFixed = (settings.mode == Mode::setup);
+            const bool wantFixed = measuring || (settings.mode == Mode::setup);
             const bool makeFixed = wantFixed && countFixed() < kFixedSlots;
 
             if (!makeFixed && countDynamic() >= kDynamicSlots)
