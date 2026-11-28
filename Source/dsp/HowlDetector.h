@@ -410,8 +410,8 @@ namespace rsdsp
 
             const double s = sensitivity;
             const float relax = measurementMode ? measureRelaxDb : 0.0f;
-            const float pnprMin = (float)(28.0 - 10.0 * s) - relax; // Nachbarabstand muss 4 dB grÃ¶ÃŸer sein
-            const float paprMin = (float)(32.0 - 8.0 * s) - relax;  // PegelÃ¼berhÃ¶hung muss 4 dB grÃ¶ÃŸer sein
+            const float pnprMin = (float)(28.0 - 10.0 * s) - relax;   // PNPR-Minimum: 28 dB (s=0) bis 18 dB (s=1), in der Messung 3 dB weniger
+            const float paprMin = (float)(32.0 - 8.0 * s) - relax;   // PAPR-Minimum: 32 dB (s=0) bis 24 dB (s=1), in der Messung 3 dB weniger
             const float floorDb = -72.0f;
 
             numPeaks = 0;
@@ -440,6 +440,27 @@ namespace rsdsp
 
                 if (pk.level - avgDb < paprMin || pk.pnpr < pnprMin)
                     continue;
+
+                // ---- Schmalband-Gate ------------------------------------------------
+                // Ein Howl ist extrem schmalbandig (~1.5-2 Bins). Sprachformanten und
+                // Gerauschbursts sind breiter und werden hier verworfen. Das Gate sitzt
+                // VOR der Track-Zuordnung und verwirft nur diesen einen Kandidaten
+                // (continue) - andere Kandidaten und bestehende Tracks bleiben unberuehrt.
+                // Bei sehr schwachen Peaks (gerade entstehendes Feedback) ist die Breite
+                // im Rauschen unverlaesslich -> Gate erst ab -60 dBFS.
+                {
+                    const int pkBin = (int)std::lround(pk.bin);
+                    const auto& sp = getSpectrum();
+
+                    if (sp[(size_t)pkBin].load(std::memory_order_relaxed) > -60.0f)
+                    {
+                        const float limit = (relax > 0.0f) ? kMaxHowlWidthBins * 1.5f
+                            : kMaxHowlWidthBins;
+
+                        if (peakWidthBins(pkBin) > limit)
+                            continue;
+                    }
+                }
 
                 Candidate c;
                 c.bin = pk.bin;
@@ -527,7 +548,7 @@ namespace rsdsp
                 if (tr.count > 8 && tr.level[0] - tr.level[8] < -1.5f)
                     tr.frames = 0;
 
-                // Empfehlung 9: Basis-Bestaetigung auf 5 Frames bei s=0.8
+                // Empfehlung 9: Basis-Bestaetigung 14 - 12*s Frames (s=0.8: 4, s=0.7: 6)
                 int required = (int)std::lround(14.0 - 12.0 * s);
                 double minSlope = -0.12;
 
@@ -548,26 +569,9 @@ namespace rsdsp
                         required = std::max(4, (required * 3) / 4);
                 }
 
-                // ---- Schmalband-Gate ------------------------------------------------
-               // Ein Howl ist extrem schmalbandig (~1.5-2 Bins). Sprachformanten und
-               // Gerauschbursts sind breiter und sterben hier. Bei sehr schwachen
-               // Peaks (gerade entstehendes Feedback) ist die Breite im Rauschen
-               // unverlaesslich -> Gate erst ab -60 dBFS.
-                {
-                    const auto& sp = getSpectrum();
-                    const float top = sp[(size_t)cd.bin].load(std::memory_order_relaxed);
-
-                    if (top > -60.0f)
-                    {
-                        const bool  meas = (relax > 0.0f);
-                        const float limit = meas ? kMaxHowlWidthBins * 1.5f : kMaxHowlWidthBins;
-                        if (peakWidthBins((int)cd.bin) > limit)
-                            return {};
-                    }
-                }
-                // Spektraler Fluss beschleunigt die Bestaetigung bei plaetzlichem Anstieg.
-        // Transienten (Schlagzeug, Plosive) sind breitbandig und sterben bereits
-        // im Gate â€“ hier kommt nur echtes, anschwellendes Feedback durch.
+                // Spektraler Fluss beschleunigt die Bestaetigung bei ploetzlichem Anstieg.
+                // Transienten (Schlagzeug, Plosive) sind breitbandig und sterben bereits
+                // im Schmalband-Gate - hier kommt nur echtes, anschwellendes Feedback durch.
                 if (maxFlux > 6.0f && fluxBin > 0
                     && std::abs((double)fluxBin - cd.bin) < 2.0)
                 {

@@ -80,8 +80,16 @@ namespace rsdsp
 
         void resetDetector() noexcept { detector.reset(); }
 
+        // Messung starten/beenden (Live und Statisch).
+        // Beim Start werden alle dynamischen Notches freigegeben (sie fahren ueber die
+        // Rampe auf 0 dB zurueck), damit sie die Messung nicht verfaelschen. Waehrend der
+        // Messung entstehen nur feste Notches. Nach dem Ende bleiben die festen Notches
+        // bestehen und die dynamische Erkennung arbeitet wieder normal.
         void setMeasuring(bool m) noexcept
         {
+            if (m && !measuring)
+                releaseDynamic();
+
             measuring = m;
             detector.setMeasurementMode(measuring);   // Messung in jedem Modus
         }
@@ -136,14 +144,9 @@ namespace rsdsp
                 downmix(data, numChannels, numSamples);
                 goertzel.process(mono.data(), numSamples);
             }
-            // Waehrend Messung arbeiten nur feste Notches:
-        // dynamische werden ausgblendet und erst nach Messende wieder aktiv.
-            if (measuring)
-            {
-                for (auto& s : bank.getSlots())
-                    if (s.active && !s.fixed)
-                        s.targetDb = 0.0;   // blendet ueber die Release-Rampe sanft aus
-            }
+            // Waehrend der Messung arbeiten nur feste Notches: setMeasuring() gibt die
+            // dynamischen beim Start frei, handleEvent() legt waehrend der Messung keine
+            // neuen an. Nach Messende laeuft die dynamische Erkennung wieder normal.
             bank.process(data, numChannels, numSamples);
             downmix(data, numChannels, numSamples);
 
@@ -175,6 +178,13 @@ namespace rsdsp
             }
 
             bank.publish();
+        }
+
+        // Ersetzt alle festen Notches durch die uebergebene Liste (Import / State laden).
+        void replaceFixed(const StoredNotch* in, int count) noexcept
+        {
+            releaseFixed();
+            restoreFixed(in, count);
         }
 
         void restoreFixed(const StoredNotch* in, int count) noexcept
@@ -395,13 +405,14 @@ namespace rsdsp
 
         void handleEvent(const HowlDetector::Event& ev) noexcept
         {
-            // Einpfeifen: ohne laufende Messung keine neuen oder veraenderten Notches
+            // Statisch-Modus: ohne laufende Messung keine neuen oder veraenderten Notches
             if (settings.mode == Mode::setup && !measuring)
                 return;
 
             auto& slots = bank.getSlots();
 
             // 1) Besteht bereits ein dynamischer Notch in der Naehe?
+            // (waehrend der Messung gibt es keine dynamischen Notches)
             const int dyn = measuring ? -1 : findDynamicSlot(ev.freq);
             if (dyn >= 0)
             {
@@ -442,6 +453,11 @@ namespace rsdsp
             // 3) Neuen Slot anlegen
             const bool wantFixed = measuring || (settings.mode == Mode::setup);
             const bool makeFixed = wantFixed && countFixed() < kFixedSlots;
+
+            // Waehrend der Messung entstehen nur feste Notches. Sind alle festen Slots
+            // belegt, wird nichts angelegt (kein dynamischer Notch in der Messung).
+            if (measuring && !makeFixed)
+                return;
 
             if (!makeFixed && countDynamic() >= kDynamicSlots)
             {
@@ -524,7 +540,7 @@ namespace rsdsp
         {
             detector.setSensitivity(settings.sensitivity);
             detector.setHopDivisor(settings.hopDivisor);
-            detector.setMeasurementMode(measuring && settings.mode == Mode::setup);
+            detector.setMeasurementMode(measuring);   // wie setMeasuring(): Messung in jedem Modus
         }
 
         double fs = 48000.0;

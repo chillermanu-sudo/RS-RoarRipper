@@ -52,7 +52,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout RoarRipperAudioProcessor::cr
                 [u, decimals](float v, int) { return juce::String(v, decimals) + " " + u; });
         };
 
-    // Sensitivity: 80 %
+    // Sensitivity: 70 %
     l.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ ids::sens, 1 }, "Sensitivity",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.7f,
@@ -204,7 +204,7 @@ void RoarRipperAudioProcessor::applyPendingRestore() noexcept
     const int n = pendingCount.exchange(-1);
     if (n < 0)
         return;
-    engine.restoreFixed(pending.data(), n);
+    engine.replaceFixed(pending.data(), n);   // Import/State ersetzt die bisherigen festen Notches
 }
 
 // ============================================================================

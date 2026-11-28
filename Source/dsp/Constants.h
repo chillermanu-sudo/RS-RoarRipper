@@ -41,7 +41,7 @@ namespace rsdsp
     // Sprachformanten: 10-25 Bins, Gerausch/Transienten: deutlich mehr.
     inline constexpr float kMaxHowlWidthBins = 4.0f;
 
-    // Feste Notches: Q 18 (ca. 0.0795 Oktaven)
+    // Feste Notches: 0.0795 Oktaven (entspricht Q ca. 18,1)
     inline constexpr double kNotchWidthOct = 0.0795;
 
     // Dynamische Notches: Q 20

@@ -808,6 +808,23 @@ void BugButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
     g.strokePath(legs, juce::PathStrokeType(1.4f), t);
 }
 
+void UpdateButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
+{
+    const float sc = juce::jmin(a.getWidth(), a.getHeight()) / 24.0f;
+    auto t = juce::AffineTransform::scale(sc)
+        .translated(a.getX() + (a.getWidth() - 24.0f * sc) * 0.5f,
+            a.getY() + (a.getHeight() - 24.0f * sc) * 0.5f);
+
+    // Pfeil nach unten auf einer Grundlinie (Download)
+    juce::Path arrow;
+    arrow.startNewSubPath(12.0f, 3.0f);  arrow.lineTo(12.0f, 15.5f);
+    arrow.startNewSubPath(6.0f, 10.0f);  arrow.lineTo(12.0f, 16.5f);  arrow.lineTo(18.0f, 10.0f);
+    arrow.startNewSubPath(5.0f, 21.0f);  arrow.lineTo(19.0f, 21.0f);
+    g.setColour(rsui::ink);
+    g.strokePath(arrow, juce::PathStrokeType(2.2f, juce::PathStrokeType::curved,
+        juce::PathStrokeType::rounded), t);
+}
+
 void FlagButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> a)
 {
     if (!english)
@@ -2079,6 +2096,18 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
     addAndMakeVisible(bugButton);
     bugButton.onClick = [this] { appendBugLog("Bugreport geoeffnet"); bugOverlay.show(); };
 
+    // Update-Knopf: bleibt unsichtbar, bis eine neuere Version auf GitHub gefunden wurde
+    updateButton.onClick = [this]
+        {
+            auto url = rsupd::getInfo().url;
+            if (url.isEmpty())
+                url = rsupd::releasesPageUrl();
+
+            appendBugLog("Update-Knopf");
+            juce::URL(url).launchInDefaultBrowser();
+        };
+    addChildComponent(updateButton);
+
     addChildComponent(bugOverlay);
     addChildComponent(infoPopup);
 
@@ -2126,7 +2155,7 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
                     &measureSwitch, &bypassSwitch, &muteSwitch,
                     &sens.slider, &hold.slider, &release.slider, &hpf.slider, &lpf.slider,
                     &resetButton, &exportButton, &importButton,
-                    &infoButton, &flagButton, &coffeeButton, &bugButton,
+                    &infoButton, &flagButton, &coffeeButton, &bugButton, &updateButton,
                     &vuIn, &vuOut, &spectrum, &cpuLabel, &versionLabel };
 
     setupInfoTexts();
@@ -2141,11 +2170,17 @@ RoarRipperAudioProcessorEditor::RoarRipperAudioProcessorEditor(RoarRipperAudioPr
     lastTick = juce::Time::getMillisecondCounterHiRes();
     startTimerHz(30);
     appendBugLog("Editor gestartet, Version v" + getVersionString());
+
+#if RS_ENABLE_UPDATE_CHECK
+    // Prueft im Hintergrund (eigener Thread) auf eine neuere Version; blockiert nie.
+    updateChecker = std::make_unique<rsupd::UpdateChecker>(getVersionString());
+#endif
 }
 
 RoarRipperAudioProcessorEditor::~RoarRipperAudioProcessorEditor()
 {
     stopTimer();
+    updateChecker.reset();
     setLookAndFeel(nullptr);
 }
 
@@ -2182,6 +2217,8 @@ void RoarRipperAudioProcessorEditor::setupInfoTexts()
             "Vielleicht ist es Dir einen Kaffee oder Big Mac wert, einen Tontechnikerkollegen zu unterstuetzen. "
             "Falls nicht, ist es aber auch in Ordnung. Geniesse in jedem Fall die Arbeit damit. :)");
         bugButton.setTooltip("Bugreport: Oeffnet ein Fenster mit Kommentarfeld und sendet einen Report an info@roarsound.de.");
+        updateButton.setTooltip("Update verfuegbar" + (rsupd::getInfo().tag.isNotEmpty() ? ": " + rsupd::getInfo().tag : juce::String())
+            + ". Klick oeffnet die Download-Seite auf GitHub.");
 
         vuIn.setTip("Eingangspegel (VU): Pegel vor der Bearbeitung. 0 VU entspricht -18 dBFS. "
             "Skala von -24 bis +3. Die Nadel folgt dem Signal mit etwa 300 ms Traegheit, "
@@ -2208,7 +2245,7 @@ void RoarRipperAudioProcessorEditor::setupInfoTexts()
         bypassSwitch.setTooltip("Bypass: Signal unbearbeitet durchleiten. Alle Notches bleiben intern erhalten.");
         muteSwitch.setTooltip("Mute: Ausgang wird mit 5 ms Rampe stummgeschaltet.");
         exportButton.setTooltip("Export: Speichert Einstellungen und feste Notches als XML.");
-        importButton.setTooltip("Import: Laedt ein XML-Preset inklusive fester Notches.");
+        importButton.setTooltip("Import: Laedt ein XML-Preset inklusive fester Notches. Die bisherigen festen Notches werden ersetzt.");
         sens.slider.setTooltip("Sensitivity: Empfindlichkeit der Feedback-Erkennung. Ziehen zum Aendern. Standard 70 %.");
         hold.slider.setTooltip("Hold: Haltezeit nach dem letzten Feedback-Treffer. Ziehen zum Aendern.");
         release.slider.setTooltip("Release: Rueckfahrzeit des Notches auf 0 dB. Ziehen zum Aendern.");
@@ -2227,6 +2264,8 @@ void RoarRipperAudioProcessorEditor::setupInfoTexts()
             "Maybe it's worth a coffee or a Big Mac to support a fellow audio engineer. "
             "If not, that's perfectly fine too. Enjoy working with it either way. :)");
         bugButton.setTooltip("Bug report: opens a comment window and sends a report to info@roarsound.de.");
+        updateButton.setTooltip("Update available" + (rsupd::getInfo().tag.isNotEmpty() ? ": " + rsupd::getInfo().tag : juce::String())
+            + ". Click to open the download page on GitHub.");
 
         vuIn.setTip("Input level (VU): level before processing. 0 VU equals -18 dBFS. "
             "Scale from -24 to +3. The needle follows the signal with about 300 ms ballistics, "
@@ -2253,7 +2292,7 @@ void RoarRipperAudioProcessorEditor::setupInfoTexts()
         bypassSwitch.setTooltip("Bypass: passes signal unprocessed. Notches remain active internally.");
         muteSwitch.setTooltip("Mute: output muted with a 5 ms ramp.");
         exportButton.setTooltip("Export: saves settings and fixed notches as XML.");
-        importButton.setTooltip("Import: loads an XML preset including fixed notches.");
+        importButton.setTooltip("Import: loads an XML preset including fixed notches. The current fixed notches are replaced.");
         sens.slider.setTooltip("Sensitivity: feedback detection sensitivity. Drag to change. Default 70 %.");
         hold.slider.setTooltip("Hold: time a notch stays after the last feedback hit. Drag to change.");
         release.slider.setTooltip("Release: time a notch takes to return to 0 dB. Drag to change.");
@@ -2328,6 +2367,8 @@ void RoarRipperAudioProcessorEditor::timerCallback()
 
     measureSwitch.setToggleState(proc.isMeasuring(), juce::dontSendNotification);
 
+    pollUpdate();
+
     hpf.slider.repaint();
     lpf.slider.repaint();
 
@@ -2338,6 +2379,49 @@ void RoarRipperAudioProcessorEditor::timerCallback()
         repaint(lampRect);
 
     updateInfoHover(dt);
+}
+
+void RoarRipperAudioProcessorEditor::pollUpdate()
+{
+#if RS_ENABLE_UPDATE_CHECK
+    const auto info = rsupd::getInfo();
+
+    if (!info.checked || !info.newer)
+        return;
+
+    if (!updateButton.isVisible())
+    {
+        updateButton.setToggleState(true, juce::dontSendNotification);   // leuchtet gruen
+        updateButton.setVisible(true);
+        setupInfoTexts();
+        resized();
+        repaint();
+    }
+
+    // Einmalige Meldung pro Prozess (nicht bei jedem Oeffnen des Editors)
+    if (rsupd::claimNotification())
+    {
+        appendBugLog("Update verfuegbar: " + info.tag);
+
+        const juce::String installed = "v" + getVersionString();
+
+        const juce::String title = english ? "RS Roar Ripper update" : "RS Roar Ripper Update";
+        const juce::String message = english
+            ? "A new version of RS Roar Ripper is available: " + info.tag
+                + " (installed: " + installed + ").\n\n"
+                  "Use the green update button in the top bar of the plug-in to open the download page."
+            : "Es ist eine neue Version von RS Roar Ripper verfuegbar: " + info.tag
+                + " (installiert: " + installed + ").\n\n"
+                  "Ueber den gruenen Update-Knopf in der Kopfzeile des Plug-ins gelangst Du zur Download-Seite.";
+
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions()
+                .withIconType(juce::MessageBoxIconType::InfoIcon)
+                .withTitle(title)
+                .withMessage(message)
+                .withButton(juce::MessageBoxButtonOptions("OK", 0)),   // JUCE 9: Button-Objekt statt Text
+            [](int) {});
+    }
+#endif
 }
 
 void RoarRipperAudioProcessorEditor::updateInfoHover(double dt)
@@ -2379,7 +2463,8 @@ void RoarRipperAudioProcessorEditor::updateInfoHover(double dt)
 
     const bool exempt = (hoverTarget == &infoButton
         || hoverTarget == &coffeeButton
-        || hoverTarget == &flagButton);
+        || hoverTarget == &flagButton
+        || hoverTarget == &updateButton);
 
     if (!infoMode && !exempt)
     {
@@ -2593,6 +2678,8 @@ void RoarRipperAudioProcessorEditor::resized()
         place(bugButton, 22.0f);
         place(flagButton, 22.0f);
         place(infoButton, 22.0f);
+        if (updateButton.isVisible())
+            place(updateButton, 22.0f);
         x -= 4.0f;
 
         const float cpuW = standalone ? 60.0f : 74.0f;

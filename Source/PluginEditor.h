@@ -23,6 +23,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "UpdateChecker.h"
 
 #include <memory>
 #include <vector>
@@ -115,6 +116,15 @@ public:
     BugButton() : IconMetalButton("Bugreport") {}
 protected:
     void drawIcon(juce::Graphics&, juce::Rectangle<float>) override;
+};
+
+class UpdateButton : public IconMetalButton
+{
+public:
+    UpdateButton() : IconMetalButton("Update") {}
+protected:
+    void drawIcon(juce::Graphics&, juce::Rectangle<float>) override;
+    juce::Colour litColour() const override { return rsui::jewelGrn; }
 };
 
 class FlagButton : public IconMetalButton
@@ -299,6 +309,7 @@ private:
     void setLanguage(bool en);
     void buildPanel();
     void updateInfoHover(double dt);
+    void pollUpdate();
 
     struct Knob
     {
@@ -332,6 +343,7 @@ private:
     FlagButton   flagButton;
     CoffeeButton coffeeButton;
     BugButton    bugButton;
+    UpdateButton updateButton;
 
     Knob sens, hold, release, hpf, lpf;
 
@@ -349,6 +361,8 @@ private:
     juce::Component* hoverTarget = nullptr;
     juce::Point<int> lastMouse;
     double hoverSeconds = 0.0;
+
+    std::unique_ptr<rsupd::UpdateChecker> updateChecker;   // Hintergrund-Pruefung auf neue Version
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RoarRipperAudioProcessorEditor)
 };

@@ -1,0 +1,13 @@
+# Zeilenenden: Textdateien normalisieren, Source auf CRLF (Windows/VS)
+* text=auto
+
+*.cpp   text eol=crlf
+*.h     text eol=crlf
+*.jucer text eol=crlf
+*.iss   text eol=crlf
+*.md    text eol=crlf
+
+# Binaerdateien nicht anfassen
+*.png   binary
+*.jpg   binary
+*.ico   binary
